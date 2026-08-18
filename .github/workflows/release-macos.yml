@@ -1,0 +1,138 @@
+##
+# GitHub Actions workflow to build and release xnuports/pkg for macOS
+#
+# This workflow should be added to https://github.com/xnuports/pkg
+# under .github/workflows/release-macos.yml
+#
+# It builds pkg for macOS arm64 and x86_64, creates .tar.xz archives,
+# and uploads them as GitHub Releases.
+#
+# Usage:
+#   Push a tag like v2.8.99.1 to trigger a release build.
+
+name: release-macos
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build pkg for ${{ matrix.target }} (${{ matrix.compiler }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+        compiler:
+          - clang
+          - gcc
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: pkg
+
+      - name: Install dependencies
+        run: |
+          brew update --quiet || true
+          brew install libarchive openssl pkg-config
+
+          # Ensure pkg-config finds brew's libarchive
+          echo "PKG_CONFIG_PATH=$(brew --prefix libarchive)/lib/pkgconfig" >> "${GITHUB_ENV}"
+
+      - name: Setup build environment
+        run: |
+          echo "CC=${{ matrix.compiler }}" >> "${GITHUB_ENV}"
+          echo "CXX=${{ matrix.compiler }}++" >> "${GITHUB_ENV}"
+          echo "PREFIX=${GITHUB_WORKSPACE}/install-${{ matrix.target }}" >> "${GITHUB_ENV}"
+          echo "NPROC=$(sysctl -n hw.ncpu 2>/dev/null || echo 4)" >> "${GITHUB_ENV}"
+
+      - name: Configure
+        working-directory: pkg
+        run: |
+          ./configure --prefix="${PREFIX}" \
+            --with-libarchive.pc \
+            --with-openssl.pc \
+            --host=${{ matrix.target }}
+
+      - name: Build
+        working-directory: pkg
+        run: make -j${NPROC}
+
+      - name: Install
+        working-directory: pkg
+        run: make install
+
+      - name: Package binaries
+        run: |
+          cd "${PREFIX}"
+          
+          # Create tarball
+          tar -cJf "${GITHUB_WORKSPACE}/pkg-macos-${{ matrix.target }}.tar.xz" \
+            bin/pkg \
+            bin/pkg-static \
+            sbin/pkgfs \
+            sbin/pkg-static \
+            lib/libpkg* \
+            share/man/man1/pkg*.1 \
+            share/man/man5/pkg*.5 \
+            share/man/man8/pkg*.8 \
+            share/zsh/site-functions/_pkg \
+            etc/pkg/
+
+      - name: Generate checksums
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          shasum -a 256 pkg-macos-${{ matrix.target }}.tar.xz > pkg-macos-${{ matrix.target }}.tar.xz.sha256
+          shasum -a 256 pkg-macos-${{ matrix.target }}.tar.xz | awk '{print $1}' > pkg-macos-${{ matrix.target }}.tar.xz.sha256
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkg-macos-${{ matrix.target }}
+          path: |
+            pkg-macos-${{ matrix.target }}.tar.xz
+            pkg-macos-${{ matrix.target }}.tar.xz.sha256
+          retention-days: 30
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          
+          # Find and move all artifacts
+          find ./artifacts -type f | while read -r file; do
+            cp "$file" release-assets/
+          done
+          
+          ls -la release-assets/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            release-assets/pkg-macos-aarch64-apple-darwin.tar.xz
+            release-assets/pkg-macos-aarch64-apple-darwin.tar.xz.sha256
+            release-assets/pkg-macos-x86_64-apple-darwin.tar.xz
+            release-assets/pkg-macos-x86_64-apple-darwin.tar.xz.sha256
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

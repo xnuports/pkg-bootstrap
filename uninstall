@@ -1,0 +1,173 @@
+#!/bin/bash
+# xnuports/pkg-bootstrap uninstaller
+# Removes xnuports/pkg from the system
+#
+# Usage:
+#   ./uninstall [--prefix=PATH] [--yes]
+#
+# Environment:
+#   XNUPORTS_PREFIX    Installation prefix (default: /opt/xnuports)
+#   NONINTERACTIVE     Set to 1 for non-interactive uninstall
+
+set -euo pipefail
+
+# ─── Configuration ───────────────────────────────────────────────────────────
+
+XNUPORTS_DEFAULT_PREFIX="/opt/xnuports"
+PREFIX="${XNUPORTS_PREFIX:-${XNUPORTS_DEFAULT_PREFIX}}"
+NONINTERACTIVE="${NONINTERACTIVE:-0}"
+
+# ─── Helpers ─────────────────────────────────────────────────────────────────
+
+abort() {
+  printf "ERROR: %s\n" "$*" >&2
+  exit 1
+}
+
+ohai() {
+  printf "\033[1;34m==>\033[1m %s\033[0m\n" "$*"
+}
+
+warn() {
+  printf "\033[1;33mWarning\033[0m: %s\n" "$*" >&2
+}
+
+# ─── Argument Parsing ────────────────────────────────────────────────────────
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --prefix=*)
+      PREFIX="${1#*=}"
+      shift
+      ;;
+    --prefix)
+      PREFIX="$2"
+      shift 2
+      ;;
+    --yes|--non-interactive)
+      NONINTERACTIVE=1
+      shift
+      ;;
+    --help|-h)
+      cat <<EOF
+xnuports/pkg-bootstrap uninstaller
+
+Usage: uninstall [options]
+
+Options:
+  --prefix=PATH        Installation prefix (default: ${XNUPORTS_DEFAULT_PREFIX})
+  --yes, --non-interactive   Uninstall without prompting
+  --help, -h           Show this help message
+
+Environment:
+  XNUPORTS_PREFIX      Same as --prefix
+  NONINTERACTIVE       Set to 1 for non-interactive uninstall
+EOF
+      exit 0
+      ;;
+    *)
+      abort "Unknown option: $1"
+      ;;
+  esac
+done
+
+# ─── Confirmation ────────────────────────────────────────────────────────────
+
+ohai "xnuports/pkg-bootstrap uninstaller"
+ohai "This will remove xnuports/pkg from ${PREFIX}"
+
+if [[ ! -d "${PREFIX}" ]]; then
+  warn "Directory ${PREFIX} does not exist. Nothing to uninstall."
+  exit 0
+fi
+
+if [[ -z "${NONINTERACTIVE-}" ]]; then
+  read -r -p "Are you sure you want to remove ${PREFIX}? [y/N] " response
+  case "${response}" in
+    [yY][eE][sS]|[yY])
+      ;;
+    *)
+      ohai "Uninstall cancelled."
+      exit 0
+      ;;
+  esac
+fi
+
+# ─── Remove Shell Configuration ─────────────────────────────────────────────
+
+ohai "Removing shell configuration..."
+
+# Detect shell RC files to clean up
+SHELL_RC_FILES=()
+case "${SHELL}" in
+  */bash*)
+    SHELL_RC_FILES+=("${HOME}/.bash_profile")
+    SHELL_RC_FILES+=("${HOME}/.bashrc")
+    ;;
+  */zsh*)
+    SHELL_RC_FILES+=("${ZDOTDIR:-${HOME}}/.zprofile")
+    SHELL_RC_FILES+=("${ZDOTDIR:-${HOME}}/.zshrc")
+    ;;
+  */fish*)
+    SHELL_RC_FILES+=("${HOME}/.config/fish/config.fish")
+    ;;
+esac
+
+for rcfile in "${SHELL_RC_FILES[@]}"; do
+  if [[ -f "${rcfile}" ]]; then
+    # Remove xnuports lines
+    local tmpfile
+    tmpfile="$(mktemp)"
+    local removed=0
+    
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+      if [[ "${line}" == *"xnuports"* ]] || [[ "${line}" == *"/opt/xnuports"* ]]; then
+        removed=1
+        continue
+      fi
+      echo "${line}"
+    done < "${rcfile}" > "${tmpfile}"
+    
+    if [[ "${removed}" -eq 1 ]]; then
+      mv "${tmpfile}" "${rcfile}"
+      ohai "Cleaned ${rcfile}"
+    else
+      rm "${tmpfile}"
+    fi
+  fi
+done
+
+# ─── Remove Prefix Directory ────────────────────────────────────────────────
+
+ohai "Removing ${PREFIX}..."
+
+if [[ -d "${PREFIX}" ]]; then
+  if [[ -n "${NONINTERACTIVE-}" ]]; then
+    rm -rf "${PREFIX}"
+  else
+    # Use sudo if needed
+    if [[ -w "${PREFIX}" ]]; then
+      rm -rf "${PREFIX}"
+    elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+      sudo rm -rf "${PREFIX}"
+    else
+      ohai "Removing ${PREFIX} requires sudo. Please run:"
+      echo "  sudo rm -rf ${PREFIX}"
+    fi
+  fi
+fi
+
+# ─── Remove Package Database ────────────────────────────────────────────────
+
+ohai "Removing package database..."
+if [[ -d "${HOME}/.pkg" ]]; then
+  rm -rf "${HOME}/.pkg"
+fi
+
+# ─── Done ────────────────────────────────────────────────────────────────────
+
+ohai "Uninstall complete!"
+echo
+echo "xnuports/pkg has been removed from your system."
+echo "You may want to restart your shell or update your PATH."
+echo

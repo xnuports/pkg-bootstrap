@@ -1,0 +1,639 @@
+#!/bin/bash
+# xnuports/pkg-bootstrap installer
+# Bootstraps FreeBSD's pkg package manager on macOS
+#
+# Usage:
+#   curl -fsSL https://raw.githubusercontent.com/xnuports/pkg-bootstrap/main/install | bash
+#   ./install [--yes] [--verbose] [--prefix=PATH]
+#
+# Environment:
+#   XNUPORTS_PREFIX    Installation prefix (default: /opt/xnuports)
+#   NONINTERACTIVE     Set to 1 for non-interactive install
+#   XNUPORTS_DEBUG     Set to 1 for verbose debug output
+
+set -euo pipefail
+
+# ─── Configuration ───────────────────────────────────────────────────────────
+
+XNUPORTS_DEFAULT_PREFIX="/opt/xnuports"
+XNUPORTS_REPO="https://github.com/xnuports/pkg"
+XNUPORTS_XNU="https://github.com/xnuports/xnuports"
+XNUPORTS_PKG_RELEASES="${XNUPORTS_REPO}/releases"
+
+# ─── Helpers ─────────────────────────────────────────────────────────────────
+
+abort() {
+  printf "ERROR: %s\n" "$*" >&2
+  exit 1
+}
+
+ohai() {
+  printf "\033[1;34m==>\033[1m %s\033[0m\n" "$*"
+}
+
+warn() {
+  printf "\033[1;33mWarning\033[0m: %s\n" "$*" >&2
+}
+
+info() {
+  if [[ -n "${XNUPORTS_DEBUG-}" ]]; then
+    printf "\033[1;34mDEBUG:\033[0m %s\n" "$*" >&2
+  fi
+}
+
+shell_join() {
+  local arg
+  printf "%s" "$1"
+  shift
+  for arg in "$@"; do
+    printf " %s" "${arg// /\ }"
+  done
+}
+
+execute() {
+  if ! "$@"; then
+    abort "Failed during: $(shell_join "$@")"
+  fi
+}
+
+retry() {
+  local tries=$1 n=$1 pause=2
+  shift
+  if ! "$@"; then
+    while (( --n > 0 )); do
+      warn "Trying again in ${pause}s: $(shell_join "$@")"
+      sleep "$pause"
+      (( pause *= 2 ))
+      if "$@"; then
+        return
+      fi
+    done
+    abort "Failed ${tries} times doing: $(shell_join "$@")"
+  fi
+}
+
+# ─── Argument Parsing ────────────────────────────────────────────────────────
+
+PREFIX="${XNUPORTS_DEFAULT_PREFIX}"
+NONINTERACTIVE="${NONINTERACTIVE:-0}"
+VERBOSE=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --prefix=*)
+      PREFIX="${1#*=}"
+      shift
+      ;;
+    --prefix)
+      PREFIX="$2"
+      shift 2
+      ;;
+    --yes|--non-interactive)
+      NONINTERACTIVE=1
+      shift
+      ;;
+    --verbose)
+      VERBOSE=1
+      XNUPORTS_DEBUG=1
+      shift
+      ;;
+    --help|-h)
+      cat <<EOF
+xnuports/pkg-bootstrap installer
+
+Usage: install [options]
+
+Options:
+  --prefix=PATH        Installation prefix (default: ${XNUPORTS_DEFAULT_PREFIX})
+  --yes, --non-interactive   Install without prompting
+  --verbose            Enable verbose output
+  --help, -h           Show this help message
+
+Environment:
+  XNUPORTS_PREFIX      Same as --prefix
+  NONINTERACTIVE       Set to 1 for non-interactive install
+  XNUPORTS_DEBUG       Set to 1 for verbose debug output
+
+EOF
+      exit 0
+      ;;
+    *)
+      abort "Unknown option: $1"
+      ;;
+  esac
+done
+
+PREFIX="${XNUPORTS_PREFIX:-$PREFIX}"
+
+# ─── Pre-flight Checks ──────────────────────────────────────────────────────
+
+# Must run on macOS
+if [[ "$(uname)" != "Darwin" ]]; then
+  abort "xnuports is only supported on macOS."
+fi
+
+# Must use bash
+if [[ -z "${BASH_VERSION:-}" ]]; then
+  abort "Bash is required to interpret this script."
+fi
+
+# Detect architecture
+UNAME_MACHINE="$(uname -m)"
+case "${UNAME_MACHINE}" in
+  arm64)  XNUPORTS_ARCH="arm64" ;;
+  x86_64) XNUPORTS_ARCH="x86_64" ;;
+  *)
+    abort "Unsupported architecture: ${UNAME_MACHINE}. Only arm64 and x86_64 are supported."
+    ;;
+esac
+info "Detected architecture: ${XNUPORTS_ARCH}"
+
+# Check for curl
+if ! command -v curl >/dev/null 2>&1; then
+  abort "curl is required but not found. Please install curl and try again."
+fi
+
+# Check for tar
+if ! command -v tar >/dev/null 2>&1; then
+  abort "tar is required but not found."
+fi
+
+# Check for xz
+if ! command -v xz >/dev/null 2>&1; then
+  abort "xz is required but not found. Please install xz (e.g. brew install xz) and try again."
+fi
+
+# Check for git
+if ! command -v git >/dev/null 2>&1; then
+  abort "git is required but not found. Please install git and try again."
+fi
+
+# Check for make and a C compiler
+if ! command -v make >/dev/null 2>&1; then
+  abort "make is required but not found. Please install Xcode Command Line Tools (xcode-select --install) and try again."
+fi
+
+if ! command -v cc >/dev/null 2>&1 && ! command -v clang >/dev/null 2>&1; then
+  abort "A C compiler (cc or clang) is required but not found. Please install Xcode Command Line Tools."
+fi
+
+# ─── Root Check ─────────────────────────────────────────────────────────────
+
+if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+  abort "Do not run this script as root."
+fi
+
+# ─── Prefix Validation ──────────────────────────────────────────────────────
+
+if [[ "${PREFIX}" == "/usr" ]] || [[ "${PREFIX}" == "/usr/local" ]]; then
+  abort "Cannot install xnuports to ${PREFIX}. Please choose a different prefix (e.g. ${XNUPORTS_DEFAULT_PREFIX})."
+fi
+
+# ─── Xcode Command Line Tools ────────────────────────────────────────────────
+
+ohai "Checking for Xcode Command Line Tools..."
+if ! xcrun --find clang >/dev/null 2>&1; then
+  if [[ -z "${NONINTERACTIVE-}" ]]; then
+    ohai "Installing Xcode Command Line Tools (this will open a GUI prompt)..."
+    xcode-select --install
+    echo "Press any key when the installation has completed."
+    read -r -n 1 -s
+  else
+    ohai "Xcode Command Line Tools not found. Installing..."
+    xcode-select --install 2>/dev/null || true
+    # Wait for installation
+    while ! xcrun --find clang >/dev/null 2>&1; do
+      sleep 5
+    done
+  fi
+fi
+info "Xcode Command Line Tools found."
+
+# ─── Homebrew ───────────────────────────────────────────────────────────────
+
+ensure_brew() {
+  if command -v brew >/dev/null 2>&1; then
+    info "Homebrew found at: $(command -v brew)"
+    return 0
+  fi
+  
+  if [[ -d "/opt/homebrew" ]] && [[ -x "/opt/homebrew/bin/brew" ]]; then
+    info "Found Homebrew at /opt/homebrew/bin/brew"
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+    return 0
+  fi
+  
+  if [[ -d "/usr/local/Homebrew" ]] && [[ -x "/usr/local/bin/brew" ]]; then
+    info "Found Homebrew at /usr/local/bin/brew"
+    return 0
+  fi
+  
+  return 1
+}
+
+install_brew_dependencies() {
+  local -a brew_deps=()
+  
+  # Check for required libraries
+  if ! pkg-config --exists libarchive 2>/dev/null; then
+    brew_deps+=(libarchive)
+  fi
+  
+  if ! pkg-config --exists openssl 2>/dev/null; then
+    brew_deps+=(openssl)
+  fi
+  
+  if [[ ${#brew_deps[@]} -gt 0 ]]; then
+    ohai "Installing build dependencies via Homebrew: ${brew_deps[*]}"
+    
+    if ! ensure_brew; then
+      warn "Homebrew not found. Attempting to install Homebrew..."
+      if [[ -z "${NONINTERACTIVE-}" ]]; then
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+      else
+        abort "Homebrew is required to build pkg on macOS. Please install Homebrew first:\n  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+      fi
+      
+      # Add brew to PATH for this session
+      if [[ -d "/opt/homebrew" ]]; then
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+      elif [[ -d "/usr/local/Homebrew" ]]; then
+        eval "$(/usr/local/bin/brew shellenv)"
+      fi
+    fi
+    
+    execute brew install "${brew_deps[@]}"
+    
+    # Set PKG_CONFIG_PATH for brew-installed libarchive
+    local brew_libarchive_pkgconfig
+    brew_libarchive_pkgconfig="$(brew --prefix libarchive)/lib/pkgconfig"
+    if [[ -d "${brew_libarchive_pkgconfig}" ]]; then
+      export PKG_CONFIG_PATH="${brew_libarchive_pkgconfig}${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}"
+    fi
+  fi
+}
+
+# ─── Sudo Access ────────────────────────────────────────────────────────────
+
+have_sudo_access() {
+  if ! command -v sudo >/dev/null 2>&1; then
+    return 1
+  fi
+  
+  if [[ -n "${NONINTERACTIVE-}" ]]; then
+    sudo -n -l mkdir >/dev/null 2>&1
+  else
+    sudo -v && sudo -l mkdir >/dev/null 2>&1
+  fi
+}
+
+execute_sudo() {
+  if [[ "${EUID:-$(id -u)}" -ne 0 ]] && have_sudo_access; then
+    execute sudo "$@"
+  else
+    execute "$@"
+  fi
+}
+
+# ─── Binary Download ────────────────────────────────────────────────────────
+
+download_pkg_binary() {
+  local version="${1:-latest}"
+  local os="Darwin"
+  local arch="${XNUPORTS_ARCH}"
+  local asset_name="pkg-${os}-${arch}.tar.xz"
+  local download_url=""
+  
+  ohai "Attempting to download pre-built pkg binary..."
+  
+  if [[ "${version}" == "latest" ]]; then
+    # Get latest release tag
+    local latest_tag
+    latest_tag="$(curl -fsSL "${XNUPORTS_PKG_RELEASES}/latest" | grep -o 'tag/[^"]*' | head -1 | sed 's|tag/||')" || true
+    if [[ -z "${latest_tag}" ]]; then
+      # Fallback: query GitHub API
+      latest_tag="$(curl -fsSL "https://api.github.com/repos/xnuports/pkg/releases/latest" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": "\([^"]*\)".*/\1/')" || true
+    fi
+    version="${latest_tag}"
+  fi
+  
+  if [[ -z "${version}" ]]; then
+    info "No release version found."
+    return 1
+  fi
+  
+  info "Found release version: ${version}"
+  download_url="${XNUPORTS_PKG_RELEASES}/download/${version}/${asset_name}"
+  info "Download URL: ${download_url}"
+  
+  # Try to download
+  local tmpdir
+  tmpdir="$(mktemp -d)"
+  local tarball="${tmpdir}/${asset_name}"
+  
+  if curl -fsSL --retry 3 --connect-timeout 10 -o "${tarball}" "${download_url}"; then
+    info "Downloaded binary tarball successfully."
+    
+    # Create prefix directories
+    execute_sudo mkdir -p "${PREFIX}"
+    execute_sudo chown "${USER}:$(id -gn)" "${PREFIX}"
+    
+    # Extract
+    execute tar -xJf "${tarball}" -C "${PREFIX}"
+    
+    rm -rf "${tmpdir}"
+    return 0
+  fi
+  
+  rm -rf "${tmpdir}"
+  return 1
+}
+
+# ─── Build from Source ───────────────────────────────────────────────────────
+
+build_pkg_from_source() {
+  ohai "Building pkg from source..."
+  
+  # Install dependencies
+  install_brew_dependencies
+  
+  # Create workspace
+  local build_dir
+  build_dir="$(mktemp -d -t xnuports-build)"
+  cd "${build_dir}"
+  
+  ohai "Cloning xnuports/pkg..."
+  execute git clone --depth=1 "${XNUPORTS_REPO}" pkg-src
+  cd pkg-src
+  
+  # Determine compiler
+  local CC="cc"
+  if command -v clang >/dev/null 2>&1; then
+    CC="clang"
+  fi
+  
+  ohai "Configuring pkg with prefix=${PREFIX}..."
+  
+  local configure_cmd=(./configure --prefix="${PREFIX}" --with-libarchive.pc --with-openssl.pc)
+  
+  if [[ "${XNUPORTS_ARCH}" == "arm64" ]]; then
+    configure_cmd+=(--host=aarch64-apple-darwin)
+  else
+    configure_cmd+=(--host=x86_64-apple-darwin)
+  fi
+  
+  execute "${configure_cmd[@]}"
+  
+  ohai "Building pkg (this may take a few minutes)..."
+  execute make -j"$(sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+  
+  ohai "Installing pkg to ${PREFIX}..."
+  execute make install
+  
+  cd /
+  rm -rf "${build_dir}"
+}
+
+# ─── Directory Setup ────────────────────────────────────────────────────────
+
+setup_directories() {
+  ohai "Creating directory structure under ${PREFIX}..."
+  
+  local -a dirs=(
+    "${PREFIX}/bin"
+    "${PREFIX}/sbin"
+    "${PREFIX}/lib"
+    "${PREFIX}/include"
+    "${PREFIX}/share"
+    "${PREFIX}/share/man"
+    "${PREFIX}/share/man/man1"
+    "${PREFIX}/share/man/man5"
+    "${PREFIX}/share/man/man8"
+    "${PREFIX}/share/zsh"
+    "${PREFIX}/share/zsh/site-functions"
+    "${PREFIX}/share/bash-completion"
+    "${PREFIX}/share/fish"
+    "${PREFIX}/share/fish/completions"
+    "${PREFIX}/etc"
+    "${PREFIX}/etc/pkg"
+    "${PREFIX}/etc/pkg/repos"
+    "${PREFIX}/var"
+    "${PREFIX}/var/db"
+    "${PREFIX}/var/db/pkg"
+    "${PREFIX}/var/cache"
+    "${PREFIX}/var/cache/pkg"
+    "${PREFIX}/distfiles"
+  )
+  
+  execute_sudo mkdir -p "${dirs[@]}"
+  execute_sudo chown -R "${USER}:$(id -gn)" "${PREFIX}"
+  execute_sudo chmod -R u+rwX,go+rX,go-w "${PREFIX}"
+}
+
+# ─── pkg Configuration ──────────────────────────────────────────────────────
+
+setup_pkg_config() {
+  ohai "Configuring pkg..."
+  
+  local pkg_conf="${PREFIX}/etc/pkg/xnuports.conf"
+  
+  cat > "${pkg_conf}" <<PKGCONF
+# xnuports/pkg configuration
+# See pkg.conf(5) for details
+
+# Package database directory
+PKG_DBDIR = "${PREFIX}/var/db/pkg";
+
+# Cache directory
+PKG_CACHEDIR = "${PREFIX}/var/cache/pkg";
+
+# Download cache
+PKG_DOWNLOAD_CACHE = "${PREFIX}/distfiles";
+
+# Default repository
+PACKAGESITE = "pkg+https://xnuports.github.io/packages/macOS-${XNUPORTS_ARCH}/latest";
+
+# Repositories configuration
+REPOS_DIR = ["${PREFIX}/etc/pkg/repos"];
+
+# Disable signature checking by default (will be enabled when signing is set up)
+SIGNATURE_TYPE = "none";
+
+# Ports directory (for building from ports)
+PORTSDIR = "${PREFIX}/xnuports";
+
+# Directory for configuration files
+PKG_SYSCONFDIR = "${PREFIX}/etc";
+
+# Work directory
+WRKDIRPREFIX = "${PREFIX}/var/tmp";
+
+# Object format (for packages built on this system)
+ABI = "macOS-${XNUPORTS_ARCH}";
+ALTABI = "macOS-${XNUPORTS_ARCH}";
+PKG_ABI = "macOS-${XNUPORTS_ARCH}";
+
+# Default to installing dependencies automatically
+ASSUME_ALWAYS_YES = false;
+
+# Enable parallel builds when building from source
+DEFAULT_BUILD_PARALLEL_JOBS = $(sysctl -n hw.ncpu 2>/dev/null || echo 4);
+
+# Repository configuration
+PKGCONF
+
+  info "Wrote pkg configuration to ${pkg_conf}"
+  
+  # Create repositories directory
+  mkdir -p "${PREFIX}/etc/pkg/repos"
+  
+  # Create default repository configuration
+  local repo_conf="${PREFIX}/etc/pkg/repos/xnuports.conf"
+  cat > "${repo_conf}" <<REPOCONF
+xnuports: {
+  url: "pkg+https://xnuports.github.io/packages/macOS-${XNUPORTS_ARCH}/latest",
+  enabled: true,
+  mirror_type: "none",
+  signature_type: "none",
+  priority: 100
+}
+REPOCONF
+  
+  info "Wrote repository configuration to ${repo_conf}"
+  
+  # Set PKG_CONFIG environment for the installed pkg
+  local env_script="${PREFIX}/etc/pkg/env.sh"
+  cat > "${env_script}" <<'ENVSCRIPT'
+#!/bin/sh
+# xnuports pkg environment
+export XNUPORTS_PREFIX="/opt/xnuports"
+export PKG_DBDIR="/opt/xnuports/var/db/pkg"
+export PKG_CACHEDIR="/opt/xnuports/var/cache/pkg"
+export PKG_DOWNLOAD_CACHE="/opt/xnuports/distfiles"
+export PKG_SYSCONFDIR="/opt/xnuports/etc"
+export PORTSDIR="/opt/xnuports/xnuports"
+ENVSCRIPT
+  
+  chmod +x "${env_script}"
+}
+
+# ─── Shell Environment ──────────────────────────────────────────────────────
+
+setup_shell_environment() {
+  ohai "Setting up shell environment..."
+  
+  # Determine shell RC file
+  local shell_rcfile=""
+  case "${SHELL}" in
+    */bash*)
+      shell_rcfile="${HOME}/.bash_profile"
+      ;;
+    */zsh*)
+      shell_rcfile="${ZDOTDIR:-${HOME}}/.zprofile"
+      ;;
+    */fish*)
+      shell_rcfile="${HOME}/.config/fish/config.fish"
+      ;;
+    *)
+      shell_rcfile="${HOME}/.profile"
+      ;;
+  esac
+  
+  local xnuports_env='eval "$(/opt/xnuports/bin/pkg shellinit)"'
+  
+  # Check if already configured
+  if [[ -f "${shell_rcfile}" ]] && grep -qF "${xnuports_env}" "${shell_rcfile}"; then
+    info "Shell environment already configured in ${shell_rcfile}"
+    return
+  fi
+  
+  # Add to shell RC
+  {
+    echo ""
+    echo "# xnuports package manager"
+    echo "${xnuports_env}"
+  } >> "${shell_rcfile}"
+  
+  info "Added xnuports to ${shell_rcfile}"
+  
+  # Also add to current PATH
+  export PATH="${PREFIX}/sbin:${PREFIX}/bin:${PATH}"
+}
+
+# ─── Main ────────────────────────────────────────────────────────────────────
+
+main() {
+  ohai "xnuports/pkg-bootstrap installer"
+  ohai "Installing pkg for macOS ${XNUPORTS_ARCH} to ${PREFIX}"
+  
+  # Check if already installed
+  if [[ -x "${PREFIX}/bin/pkg" ]]; then
+    local installed_version
+    installed_version="$("${PREFIX}/bin/pkg" -v 2>/dev/null || echo "unknown")"
+    warn "xnuports/pkg is already installed at ${PREFIX} (version: ${installed_version})"
+    
+    if [[ -z "${NONINTERACTIVE-}" ]]; then
+      read -r -p "Do you want to reinstall/upgrade? [y/N] " response
+      case "${response}" in
+        [yY][eE][sS]|[yY])
+          # Continue with reinstall
+          ;;
+        *)
+          ohai "Installation skipped."
+          exit 0
+          ;;
+      esac
+    fi
+  fi
+  
+  # Try binary download first
+  if ! download_pkg_binary "latest"; then
+    ohai "No pre-built binary available, building from source..."
+    build_pkg_from_source
+  fi
+  
+  # Setup directories
+  setup_directories
+  
+  # Setup pkg configuration
+  setup_pkg_config
+  
+  # Setup shell environment
+  setup_shell_environment
+  
+  # ─── Finalization ──────────────────────────────────────────────────────────
+  
+  ohai "Installation complete!"
+  echo
+  echo "xnuports/pkg has been installed to ${PREFIX}"
+  echo
+  echo "To get started:"
+  echo "  1. Restart your shell or run: source ${shell_rcfile:-your shell RC file}"
+  echo "  2. Initialize pkg in your current shell:"
+  echo "       eval \"\$(${PREFIX}/bin/pkg shellinit)\""
+  echo "  3. Update repositories:"
+  echo "       ${PREFIX}/bin/pkg update"
+  echo "  4. Install packages:"
+  echo "       ${PREFIX}/bin/pkg install <package>"
+  echo
+  echo "Configuration:"
+  echo "  Prefix:       ${PREFIX}"
+  echo "  pkg config:   ${PREFIX}/etc/pkg/xnuports.conf"
+  echo "  Repos config: ${PREFIX}/etc/pkg/repos/xnuports.conf"
+  echo "  DB dir:       ${PREFIX}/var/db/pkg"
+  echo
+  echo "For more information, visit:"
+  echo "  https://github.com/xnuports/pkg-bootstrap"
+  echo "  https://github.com/xnuports/pkg"
+  echo "  https://github.com/xnuports/xnuports"
+  echo
+  
+  # Verify installation
+  if [[ -x "${PREFIX}/bin/pkg" ]]; then
+    ohai "Verifying installation..."
+    "${PREFIX}/bin/pkg" --version || true
+    echo
+  fi
+}
+
+main "$@"
