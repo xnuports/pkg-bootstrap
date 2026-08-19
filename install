@@ -526,6 +526,7 @@ setup_directories() {
     "${PREFIX}/var/db/pkg"
     "${PREFIX}/var/cache"
     "${PREFIX}/var/cache/pkg"
+    "${PREFIX}/var/tmp"
     "${PREFIX}/distfiles"
   )
   
