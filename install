@@ -532,9 +532,6 @@ setup_directories() {
   execute_sudo chown -R "root:wheel" "${PREFIX}"
   
   local writable_dirs=(
-    "${PREFIX}/etc"
-    "${PREFIX}/etc/pkg"
-    "${PREFIX}/etc/pkg/repos"
     "${PREFIX}/var/db/pkg"
     "${PREFIX}/var/cache/pkg"
     "${PREFIX}/var/tmp"
@@ -570,6 +567,9 @@ setup_pkg_config() {
     XNUPORTS_OS_VERSION="$(uname -r | cut -d. -f1)"
   fi
   XNUPORTS_OS_VERSION="${XNUPORTS_OS_VERSION:-14}"
+  
+  # Temporarily make etc writable to generate configs
+  execute_sudo chown "${USER}:$(id -gn)}" "${PREFIX}/etc" "${PREFIX}/etc/pkg" "${PREFIX}/etc/pkg/repos"
   
   cat > "${pkg_conf}" <<PKGCONF
 # xnuports/pkg configuration
@@ -618,7 +618,7 @@ PKGCONF
   info "Wrote pkg configuration to ${pkg_conf}"
   
   # Create repositories directory
-  mkdir -p "${PREFIX}/etc/pkg/repos"
+  execute_sudo mkdir -p "${PREFIX}/etc/pkg/repos"
   
   # Create default repository configuration
   local repo_conf="${PREFIX}/etc/pkg/repos/xnuports.conf"
@@ -634,12 +634,8 @@ REPOCONF
   
   info "Wrote repository configuration to ${repo_conf}"
   
-  # Also install repo config to system location so pkg can find it without PKG_SYSCONFDIR
-  if [[ -d "/etc/pkg/repos" ]] || mkdir -p /etc/pkg/repos 2>/dev/null; then
-    execute_sudo cp "${repo_conf}" /etc/pkg/repos/xnuports.conf
-    execute_sudo chmod 644 /etc/pkg/repos/xnuports.conf
-    info "Also installed repo config to /etc/pkg/repos/xnuports.conf"
-  fi
+  # Chown configs back to root so pkg accepts them
+  execute_sudo chown root:wheel "${pkg_conf}" "${repo_conf}" "${PREFIX}/etc/pkg/repos"
   
   # Set PKG_CONFIG environment for the installed pkg
   local env_script="${PREFIX}/etc/pkg/env.sh"
