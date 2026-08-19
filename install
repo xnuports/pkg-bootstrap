@@ -426,7 +426,7 @@ build_pkg_utils_from_source() {
     BUILD_DIR="${build_dir}/_build"
 
   ohai "Installing pkg_utils to ${PREFIX}..."
-  execute make install PREFIX="${PREFIX}" \
+  execute_sudo make install PREFIX="${PREFIX}" \
     BUILD_DIR="${build_dir}/_build"
 
   cd /
@@ -472,7 +472,7 @@ build_pkg_from_source() {
   execute make -j"$(sysctl -n hw.ncpu 2>/dev/null || echo 4)"
   
   ohai "Installing pkg to ${PREFIX}..."
-  execute make install
+  execute_sudo make install
   
   cd /
   rm -rf "${build_dir}"
