@@ -69,7 +69,7 @@ pkg install <package-name>
 ├── share/                  # Shared data symlinks
 ├── etc/
 │   └── pkg/
-│       ├── xnuports.conf   # pkg configuration
+│       ├── pkg.conf         # pkg configuration
 │       └── repos/
 │           └── xnuports.conf  # Repository configuration
 ├── var/

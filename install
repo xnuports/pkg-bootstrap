@@ -539,7 +539,7 @@ setup_directories() {
 setup_pkg_config() {
   ohai "Configuring pkg..."
   
-  local pkg_conf="${PREFIX}/etc/pkg/xnuports.conf"
+  local pkg_conf="${PREFIX}/etc/pkg/pkg.conf"
   
   cat > "${pkg_conf}" <<PKGCONF
 # xnuports/pkg configuration
@@ -748,7 +748,7 @@ main() {
   echo
   echo "Configuration:"
   echo "  Prefix:       ${PREFIX}"
-  echo "  pkg config:   ${PREFIX}/etc/pkg/xnuports.conf"
+  echo "  pkg config:   ${PREFIX}/etc/pkg/pkg.conf"
   echo "  Repos config: ${PREFIX}/etc/pkg/repos/xnuports.conf"
   echo "  DB dir:       ${PREFIX}/var/db/pkg"
   echo
