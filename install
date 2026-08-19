@@ -342,7 +342,8 @@ download_pkg_binary() {
   
   info "Found release version: ${version}"
   download_url="${XNUPORTS_PKG_RELEASES}/download/${version}/${asset_name}"
-  info "Download URL: ${download_url}"
+  ohai "Downloading ${asset_name}..."
+  info "URL: ${download_url}"
   
   # Try to download
   local tmpdir
@@ -363,6 +364,7 @@ download_pkg_binary() {
     return 0
   fi
   
+  warn "Failed to download ${asset_name} from ${download_url}"
   rm -rf "${tmpdir}"
   return 1
 }
@@ -396,7 +398,8 @@ download_pkg_utils_binary() {
 
   info "Found pkg_utils release version: ${version}"
   download_url="${XNUPORTS_PKG_UTILS_RELEASES}/download/${version}/${asset_name}"
-  info "Download URL: ${download_url}"
+  ohai "Downloading ${asset_name}..."
+  info "URL: ${download_url}"
 
   # Try to download
   local tmpdir
@@ -417,6 +420,7 @@ download_pkg_utils_binary() {
     return 0
   fi
 
+  warn "Failed to download ${asset_name} from ${download_url}"
   rm -rf "${tmpdir}"
   return 1
 }
@@ -701,20 +705,20 @@ main() {
   # Try binary download first
   if ! download_pkg_binary "latest"; then
     if [[ "${BUILD_FROM_SOURCE}" -eq 1 ]]; then
-      ohai "No pre-built pkg binary available, building from source..."
+      ohai "Pre-built pkg binary download failed, building from source..."
       build_pkg_from_source
     else
-      abort "No pre-built pkg binary available for ${XNUPORTS_ARCH}. Use --build-from-source to compile locally."
+      abort "Failed to download pre-built pkg binary for ${XNUPORTS_ARCH}. Check your network connection or use --build-from-source to compile locally."
     fi
   fi
 
   # Install pkg_utils
   if ! download_pkg_utils_binary "latest"; then
     if [[ "${BUILD_FROM_SOURCE}" -eq 1 ]]; then
-      ohai "No pre-built pkg_utils binary available, building from source..."
+      ohai "Pre-built pkg_utils binary download failed, building from source..."
       build_pkg_utils_from_source
     else
-      abort "No pre-built pkg_utils binary available for ${XNUPORTS_ARCH}. Use --build-from-source to compile locally."
+      abort "Failed to download pre-built pkg_utils binary for ${XNUPORTS_ARCH}. Check your network connection or use --build-from-source to compile locally."
     fi
   fi
 
