@@ -608,7 +608,7 @@ PKGCONF
   local repo_conf="${PREFIX}/etc/pkg/repos/xnuports.conf"
   cat > "${repo_conf}" <<REPOCONF
 xnuports: {
-  url: "pkg+https://xnuports.github.io/packages/macOS-${XNUPORTS_ARCH}/latest",
+  url: "https://xnuports.github.io/packages/macOS-${XNUPORTS_ARCH}/latest",
   enabled: true,
   mirror_type: "none",
   signature_type: "none",
