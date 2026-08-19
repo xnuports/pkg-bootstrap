@@ -80,6 +80,8 @@ PREFIX="${XNUPORTS_DEFAULT_PREFIX}"
 NONINTERACTIVE="${NONINTERACTIVE:-0}"
 VERBOSE=0
 
+BUILD_FROM_SOURCE=0
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --prefix=*)
@@ -99,6 +101,10 @@ while [[ $# -gt 0 ]]; do
       XNUPORTS_DEBUG=1
       shift
       ;;
+    --build-from-source)
+      BUILD_FROM_SOURCE=1
+      shift
+      ;;
     --help|-h)
       cat <<EOF
 xnuports/pkg-bootstrap installer
@@ -109,6 +115,7 @@ Options:
   --prefix=PATH        Installation prefix (default: ${XNUPORTS_DEFAULT_PREFIX})
   --yes, --non-interactive   Install without prompting
   --verbose            Enable verbose output
+  --build-from-source  Build pkg and pkg_utils from source instead of downloading binaries
   --help, -h           Show this help message
 
 Environment:
@@ -170,13 +177,15 @@ if ! command -v git >/dev/null 2>&1; then
   abort "git is required but not found. Please install git and try again."
 fi
 
-# Check for make and a C compiler
-if ! command -v make >/dev/null 2>&1; then
-  abort "make is required but not found. Please install Xcode Command Line Tools (xcode-select --install) and try again."
-fi
+if [[ "${BUILD_FROM_SOURCE}" -eq 1 ]]; then
+  # Check for make and a C compiler
+  if ! command -v make >/dev/null 2>&1; then
+    abort "make is required but not found. Please install Xcode Command Line Tools (xcode-select --install) and try again."
+  fi
 
-if ! command -v cc >/dev/null 2>&1 && ! command -v clang >/dev/null 2>&1; then
-  abort "A C compiler (cc or clang) is required but not found. Please install Xcode Command Line Tools."
+  if ! command -v cc >/dev/null 2>&1 && ! command -v clang >/dev/null 2>&1; then
+    abort "A C compiler (cc or clang) is required but not found. Please install Xcode Command Line Tools."
+  fi
 fi
 
 # ─── Root Check ─────────────────────────────────────────────────────────────
@@ -193,23 +202,24 @@ fi
 
 # ─── Xcode Command Line Tools ────────────────────────────────────────────────
 
-ohai "Checking for Xcode Command Line Tools..."
-if ! xcrun --find clang >/dev/null 2>&1; then
-  if [[ -z "${NONINTERACTIVE-}" ]]; then
-    ohai "Installing Xcode Command Line Tools (this will open a GUI prompt)..."
-    xcode-select --install
-    echo "Press any key when the installation has completed."
-    read -r -n 1 -s
-  else
-    ohai "Xcode Command Line Tools not found. Installing..."
-    xcode-select --install 2>/dev/null || true
-    # Wait for installation
-    while ! xcrun --find clang >/dev/null 2>&1; do
-      sleep 5
-    done
+if [[ "${BUILD_FROM_SOURCE}" -eq 1 ]]; then
+  ohai "Checking for Xcode Command Line Tools..."
+  if ! xcrun --find clang >/dev/null 2>&1; then
+    if [[ -z "${NONINTERACTIVE-}" ]]; then
+      ohai "Installing Xcode Command Line Tools (this will open a GUI prompt)..."
+      xcode-select --install
+      echo "Press any key when the installation has completed."
+      read -r -n 1 -s
+    else
+      ohai "Xcode Command Line Tools not found. Installing..."
+      xcode-select --install 2>/dev/null || true
+      while ! xcrun --find clang >/dev/null 2>&1; do
+        sleep 5
+      done
+    fi
   fi
+  info "Xcode Command Line Tools found."
 fi
-info "Xcode Command Line Tools found."
 
 # ─── Homebrew ───────────────────────────────────────────────────────────────
 
@@ -672,14 +682,22 @@ main() {
   
   # Try binary download first
   if ! download_pkg_binary "latest"; then
-    ohai "No pre-built binary available, building from source..."
-    build_pkg_from_source
+    if [[ "${BUILD_FROM_SOURCE}" -eq 1 ]]; then
+      ohai "No pre-built pkg binary available, building from source..."
+      build_pkg_from_source
+    else
+      abort "No pre-built pkg binary available for ${XNUPORTS_ARCH}. Use --build-from-source to compile locally."
+    fi
   fi
 
   # Install pkg_utils
   if ! download_pkg_utils_binary "latest"; then
-    ohai "No pre-built pkg_utils binary available, building from source..."
-    build_pkg_utils_from_source
+    if [[ "${BUILD_FROM_SOURCE}" -eq 1 ]]; then
+      ohai "No pre-built pkg_utils binary available, building from source..."
+      build_pkg_utils_from_source
+    else
+      abort "No pre-built pkg_utils binary available for ${XNUPORTS_ARCH}. Use --build-from-source to compile locally."
+    fi
   fi
 
   # Setup directories

@@ -7,12 +7,10 @@ Bootstrap script to install [FreeBSD's `pkg`](https://github.com/freebsd/pkg) pa
 `pkg-bootstrap` is a single script that:
 
 1. Detects your macOS architecture (arm64 or x86_64)
-2. Ensures build dependencies are available (Xcode Command Line Tools, Homebrew libraries)
-3. Downloads a pre-built `pkg` binary or builds from source
-4. Downloads a pre-built `pkg_utils` binary or builds from source
-5. Installs to `/opt/xnuports` by default
-6. Configures `pkg` to use the xnuports package repository
-7. Sets up your shell environment
+2. Downloads pre-built `pkg` and `pkg_utils` binaries from GitHub Releases
+3. Installs to `/opt/xnuports` by default
+4. Configures `pkg` to use the xnuports package repository
+5. Sets up your shell environment
 
 ## Installation
 
@@ -33,7 +31,8 @@ bash install
 --prefix=PATH          Install to PATH (default: /opt/xnuports)
 --yes, --non-interactive   Install without prompting
 --verbose              Enable verbose debug output
---help, -h             Show help message
+--build-from-source    Build pkg and pkg_utils from source instead of downloading binaries
+--help, -h             Show this help message
 ```
 
 ### Environment Variables
@@ -87,11 +86,10 @@ pkg install <package-name>
 
 ## How It Works
 
-1. **Binary First**: The script attempts to download a pre-built `pkg` binary from the [xnuports/pkg releases](https://github.com/xnuports/pkg/releases).
-2. **Source Fallback**: If no binary is available, it builds `pkg` from source using the [xnuports/pkg](https://github.com/xnuports/pkg) fork.
-3. **pkg_utils**: The script also downloads or builds [pkg_utils](https://github.com/xnuports/pkg_utils) (pkg_cutleaves, pkgs_which, pkg_cleanup, etc.).
-4. **Configuration**: Creates `/opt/xnuports/etc/pkg/` with repository and local configuration.
-5. **Shell Integration**: Adds `eval "$(/opt/xnuports/bin/pkg shellinit)"` to your shell RC file.
+1. **Binary First**: The script downloads pre-built `pkg` and `pkg_utils` binaries from GitHub Releases.
+2. **Source Build (opt-in)**: Pass `--build-from-source` to compile locally if binaries are not yet available for your platform.
+3. **Configuration**: Creates `/opt/xnuports/etc/pkg/` with repository and local configuration.
+4. **Shell Integration**: Adds `eval "$(/opt/xnuports/bin/pkg shellinit)"` to your shell RC file.
 
 ## Package Format
 
@@ -130,8 +128,12 @@ The following utilities are installed alongside `pkg`:
 
 - macOS 14.0+ (Sonoma or later)
 - arm64 (Apple Silicon) or x86_64 (Intel)
-- Xcode Command Line Tools (auto-installed if missing)
-- curl, tar, xz, git, make, a C compiler
+- curl, tar, xz, git
+
+For `--build-from-source`:
+- Xcode Command Line Tools
+- make, a C compiler (cc or clang)
+- Homebrew with libarchive and openssl
 
 ## Related Projects
 
