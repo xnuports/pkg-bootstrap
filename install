@@ -558,7 +558,7 @@ PKG_DOWNLOAD_CACHE = "${PREFIX}/distfiles";
 PACKAGESITE = "pkg+https://xnuports.github.io/packages/macOS-${XNUPORTS_ARCH}/latest";
 
 # Repositories configuration
-REPOS_DIR = ["${PREFIX}/etc/pkg/repos"];
+REPOS_DIR = ["${PREFIX}/etc/pkg/repos", "/etc/pkg/repos"];
 
 # Disable signature checking by default (will be enabled when signing is set up)
 SIGNATURE_TYPE = "none";
@@ -604,6 +604,13 @@ xnuports: {
 REPOCONF
   
   info "Wrote repository configuration to ${repo_conf}"
+  
+  # Also install repo config to system location so pkg can find it without PKG_SYSCONFDIR
+  if [[ -d "/etc/pkg/repos" ]] || mkdir -p /etc/pkg/repos 2>/dev/null; then
+    execute_sudo cp "${repo_conf}" /etc/pkg/repos/xnuports.conf
+    execute_sudo chmod 644 /etc/pkg/repos/xnuports.conf
+    info "Also installed repo config to /etc/pkg/repos/xnuports.conf"
+  fi
   
   # Set PKG_CONFIG environment for the installed pkg
   local env_script="${PREFIX}/etc/pkg/env.sh"
