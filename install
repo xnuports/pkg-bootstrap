@@ -573,9 +573,9 @@ PKG_SYSCONFDIR = "${PREFIX}/etc";
 WRKDIRPREFIX = "${PREFIX}/var/tmp";
 
 # Object format (for packages built on this system)
-ABI = "macOS-${XNUPORTS_ARCH}";
-ALTABI = "macOS-${XNUPORTS_ARCH}";
-PKG_ABI = "macOS-${XNUPORTS_ARCH}";
+ABI = "macOS:${XNUPORTS_ARCH}";
+ALTABI = "macOS:${XNUPORTS_ARCH}";
+PKG_ABI = "macOS:${XNUPORTS_ARCH}";
 
 # Default to installing dependencies automatically
 ASSUME_ALWAYS_YES = false;
