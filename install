@@ -74,6 +74,28 @@ retry() {
   fi
 }
 
+ensure_brew() {
+  if command -v brew >/dev/null 2>&1; then
+    info "Homebrew found at: $(command -v brew)"
+    eval "$(brew shellenv)" >/dev/null 2>&1 || true
+    return 0
+  fi
+  return 1
+}
+
+install_brew_dependencies() {
+  local deps=(libarchive openssl@3 pkg-config)
+
+  for dep in "${deps[@]}"; do
+    if ! brew list "${dep}" >/dev/null 2>&1; then
+      ohai "Installing ${dep}..."
+      brew install "${dep}"
+    else
+      info "${dep} is already installed."
+    fi
+  done
+}
+
 # ─── Argument Parsing ────────────────────────────────────────────────────────
 
 PREFIX="${XNUPORTS_DEFAULT_PREFIX}"
@@ -144,6 +166,11 @@ fi
 # Must use bash
 if [[ -z "${BASH_VERSION:-}" ]]; then
   abort "Bash is required to interpret this script."
+fi
+
+# If stdin is not a TTY, default to non-interactive mode
+if [[ ! -t 0 ]]; then
+  NONINTERACTIVE=1
 fi
 
 # Detect architecture
@@ -240,7 +267,11 @@ if ! ensure_brew; then
         ;;
       *)
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-        eval "$(/opt/homebrew/bin/brew shellenv)"
+        if [[ -d "/opt/homebrew" ]]; then
+          eval "$(/opt/homebrew/bin/brew shellenv)"
+        elif [[ -d "/usr/local/Homebrew" ]]; then
+          eval "$(/usr/local/bin/brew shellenv)"
+        fi
         ;;
     esac
   else
