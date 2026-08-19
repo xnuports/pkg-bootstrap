@@ -573,9 +573,15 @@ PKG_SYSCONFDIR = "${PREFIX}/etc";
 WRKDIRPREFIX = "${PREFIX}/var/tmp";
 
 # Object format (for packages built on this system)
-ABI = "macOS:${XNUPORTS_ARCH}";
-ALTABI = "macOS:${XNUPORTS_ARCH}";
-PKG_ABI = "macOS:${XNUPORTS_ARCH}";
+  if [[ "${XNUPORTS_ARCH}" == "arm64" ]]; then
+    XNUPORTS_ARCH_PKG="aarch64"
+  else
+    XNUPORTS_ARCH_PKG="${XNUPORTS_ARCH}"
+  fi
+  
+  ABI = "Darwin:${XNUPORTS_ARCH_PKG}";
+  ALTABI = "Darwin:${XNUPORTS_ARCH_PKG}";
+  PKG_ABI = "Darwin:${XNUPORTS_ARCH_PKG}";
 
 # Default to installing dependencies automatically
 ASSUME_ALWAYS_YES = false;
