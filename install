@@ -19,6 +19,8 @@ XNUPORTS_DEFAULT_PREFIX="/opt/xnuports"
 XNUPORTS_REPO="https://github.com/xnuports/pkg"
 XNUPORTS_XNU="https://github.com/xnuports/xnuports"
 XNUPORTS_PKG_RELEASES="${XNUPORTS_REPO}/releases"
+XNUPORTS_PKG_UTILS_REPO="https://github.com/xnuports/pkg_utils"
+XNUPORTS_PKG_UTILS_RELEASES="${XNUPORTS_PKG_UTILS_REPO}/releases"
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -349,6 +351,88 @@ download_pkg_binary() {
   return 1
 }
 
+# ─── pkg_utils Binary Download ────────────────────────────────────────────────
+
+download_pkg_utils_binary() {
+  local version="${1:-latest}"
+  local os="Darwin"
+  local arch="${XNUPORTS_ARCH}"
+  local asset_name="pkg_utils-${os}-${arch}.tar.xz"
+  local download_url=""
+
+  ohai "Attempting to download pre-built pkg_utils binary..."
+
+  if [[ "${version}" == "latest" ]]; then
+    # Get latest release tag
+    local latest_tag
+    latest_tag="$(curl -fsSL "${XNUPORTS_PKG_UTILS_RELEASES}/latest" | grep -o 'tag/[^"]*' | head -1 | sed 's|tag/||')" || true
+    if [[ -z "${latest_tag}" ]]; then
+      # Fallback: query GitHub API
+      latest_tag="$(curl -fsSL "https://api.github.com/repos/xnuports/pkg_utils/releases/latest" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": "\([^"]*\)".*/\1/')" || true
+    fi
+    version="${latest_tag}"
+  fi
+
+  if [[ -z "${version}" ]]; then
+    info "No pkg_utils release version found."
+    return 1
+  fi
+
+  info "Found pkg_utils release version: ${version}"
+  download_url="${XNUPORTS_PKG_UTILS_RELEASES}/download/${version}/${asset_name}"
+  info "Download URL: ${download_url}"
+
+  # Try to download
+  local tmpdir
+  tmpdir="$(mktemp -d)"
+  local tarball="${tmpdir}/${asset_name}"
+
+  if curl -fsSL --retry 3 --connect-timeout 10 -o "${tarball}" "${download_url}"; then
+    info "Downloaded pkg_utils binary tarball successfully."
+
+    # Create prefix directories
+    execute_sudo mkdir -p "${PREFIX}"
+    execute_sudo chown "${USER}:$(id -gn)" "${PREFIX}"
+
+    # Extract
+    execute tar -xJf "${tarball}" -C "${PREFIX}"
+
+    rm -rf "${tmpdir}"
+    return 0
+  fi
+
+  rm -rf "${tmpdir}"
+  return 1
+}
+
+# ─── Build pkg_utils from Source ──────────────────────────────────────────────
+
+build_pkg_utils_from_source() {
+  ohai "Building pkg_utils from source..."
+
+  # Create workspace
+  local build_dir
+  build_dir="$(mktemp -d -t xnuports-utils-build)"
+  cd "${build_dir}"
+
+  ohai "Cloning xnuports/pkg_utils..."
+  execute git clone --depth=1 "${XNUPORTS_PKG_UTILS_REPO}" pkg-utils-src
+  cd pkg-utils-src
+
+  ohai "Building pkg_utils..."
+  execute make all PREFIX="${PREFIX}" \
+    PKG_REPO="${XNUPORTS_REPO}" \
+    PORTS_REPO="https://github.com/freebsd/freebsd-ports.git" \
+    BUILD_DIR="${build_dir}/_build"
+
+  ohai "Installing pkg_utils to ${PREFIX}..."
+  execute make install PREFIX="${PREFIX}" \
+    BUILD_DIR="${build_dir}/_build"
+
+  cd /
+  rm -rf "${build_dir}"
+}
+
 # ─── Build from Source ───────────────────────────────────────────────────────
 
 build_pkg_from_source() {
@@ -591,7 +675,13 @@ main() {
     ohai "No pre-built binary available, building from source..."
     build_pkg_from_source
   fi
-  
+
+  # Install pkg_utils
+  if ! download_pkg_utils_binary "latest"; then
+    ohai "No pre-built pkg_utils binary available, building from source..."
+    build_pkg_utils_from_source
+  fi
+
   # Setup directories
   setup_directories
   
@@ -605,7 +695,7 @@ main() {
   
   ohai "Installation complete!"
   echo
-  echo "xnuports/pkg has been installed to ${PREFIX}"
+  echo "xnuports/pkg and pkg_utils have been installed to ${PREFIX}"
   echo
   echo "To get started:"
   echo "  1. Restart your shell or run: source ${shell_rcfile:-your shell RC file}"
@@ -625,6 +715,7 @@ main() {
   echo "For more information, visit:"
   echo "  https://github.com/xnuports/pkg-bootstrap"
   echo "  https://github.com/xnuports/pkg"
+  echo "  https://github.com/xnuports/pkg_utils"
   echo "  https://github.com/xnuports/xnuports"
   echo
   

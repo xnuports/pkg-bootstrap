@@ -74,7 +74,7 @@ done
 # ─── Confirmation ────────────────────────────────────────────────────────────
 
 ohai "xnuports/pkg-bootstrap uninstaller"
-ohai "This will remove xnuports/pkg from ${PREFIX}"
+ohai "This will remove xnuports/pkg and pkg_utils from ${PREFIX}"
 
 if [[ ! -d "${PREFIX}" ]]; then
   warn "Directory ${PREFIX} does not exist. Nothing to uninstall."
@@ -168,6 +168,6 @@ fi
 
 ohai "Uninstall complete!"
 echo
-echo "xnuports/pkg has been removed from your system."
+echo "xnuports/pkg and pkg_utils have been removed from your system."
 echo "You may want to restart your shell or update your PATH."
 echo

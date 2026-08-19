@@ -9,9 +9,10 @@ Bootstrap script to install [FreeBSD's `pkg`](https://github.com/freebsd/pkg) pa
 1. Detects your macOS architecture (arm64 or x86_64)
 2. Ensures build dependencies are available (Xcode Command Line Tools, Homebrew libraries)
 3. Downloads a pre-built `pkg` binary or builds from source
-4. Installs to `/opt/xnuports` by default
-5. Configures `pkg` to use the xnuports package repository
-6. Sets up your shell environment
+4. Downloads a pre-built `pkg_utils` binary or builds from source
+5. Installs to `/opt/xnuports` by default
+6. Configures `pkg` to use the xnuports package repository
+7. Sets up your shell environment
 
 ## Installation
 
@@ -88,8 +89,9 @@ pkg install <package-name>
 
 1. **Binary First**: The script attempts to download a pre-built `pkg` binary from the [xnuports/pkg releases](https://github.com/xnuports/pkg/releases).
 2. **Source Fallback**: If no binary is available, it builds `pkg` from source using the [xnuports/pkg](https://github.com/xnuports/pkg) fork.
-3. **Configuration**: Creates `/opt/xnuports/etc/pkg/` with repository and local configuration.
-4. **Shell Integration**: Adds `eval "$(/opt/xnuports/bin/pkg shellinit)"` to your shell RC file.
+3. **pkg_utils**: The script also downloads or builds [pkg_utils](https://github.com/xnuports/pkg_utils) (pkg_cutleaves, pkgs_which, pkg_cleanup, etc.).
+4. **Configuration**: Creates `/opt/xnuports/etc/pkg/` with repository and local configuration.
+5. **Shell Integration**: Adds `eval "$(/opt/xnuports/bin/pkg shellinit)"` to your shell RC file.
 
 ## Package Format
 
@@ -111,6 +113,18 @@ Or if you already have it:
 ```bash
 /opt/xnuports/bin/pkg-bootstrap uninstall
 ```
+
+## pkg_utils
+
+The following utilities are installed alongside `pkg`:
+
+- **pkg_cutleaves** - Remove leaf packages
+- **pkgs_which** - Find which package owns a file
+- **pkg_cleanup** - Clean up stale packages (requires dialog/ncurses)
+- **pkg-rmleaf** - Remove leaf packages
+- **pkg_tree** - Display package dependency tree
+- **sign_pkg** - Sign packages
+- **pkg_aspcud** - ASP solver for package upgrades
 
 ## Requirements
 
