@@ -569,7 +569,7 @@ setup_pkg_config() {
   XNUPORTS_OS_VERSION="${XNUPORTS_OS_VERSION:-14}"
   
   # Temporarily make etc writable to generate configs
-  execute_sudo chown "${USER}:$(id -gn)}" "${PREFIX}/etc" "${PREFIX}/etc/pkg" "${PREFIX}/etc/pkg/repos"
+  execute_sudo chown "${USER}:$(id -gn)" "${PREFIX}/etc" "${PREFIX}/etc/pkg" "${PREFIX}/etc/pkg/repos"
   
   cat > "${pkg_conf}" <<PKGCONF
 # xnuports/pkg configuration
