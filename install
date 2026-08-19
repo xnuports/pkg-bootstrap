@@ -532,6 +532,9 @@ setup_directories() {
   execute_sudo chown -R "root:wheel" "${PREFIX}"
   
   local writable_dirs=(
+    "${PREFIX}/etc"
+    "${PREFIX}/etc/pkg"
+    "${PREFIX}/etc/pkg/repos"
     "${PREFIX}/var/db/pkg"
     "${PREFIX}/var/cache/pkg"
     "${PREFIX}/var/tmp"
