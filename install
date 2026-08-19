@@ -615,41 +615,53 @@ ENVSCRIPT
 
 setup_shell_environment() {
   ohai "Setting up shell environment..."
-  
-  # Determine shell RC file
-  local shell_rcfile=""
+
+  # Determine shell RC files to update
+  local -a rc_files=()
   case "${SHELL}" in
     */bash*)
-      shell_rcfile="${HOME}/.bash_profile"
+      [[ -f "${HOME}/.bash_profile" ]] && rc_files+=("${HOME}/.bash_profile")
+      [[ -f "${HOME}/.bashrc" ]] && rc_files+=("${HOME}/.bashrc")
       ;;
     */zsh*)
-      shell_rcfile="${ZDOTDIR:-${HOME}}/.zprofile"
+      [[ -f "${ZDOTDIR:-${HOME}}/.zprofile" ]] && rc_files+=("${ZDOTDIR:-${HOME}}/.zprofile")
+      [[ -f "${ZDOTDIR:-${HOME}}/.zshrc" ]] && rc_files+=("${ZDOTDIR:-${HOME}}/.zshrc")
       ;;
     */fish*)
-      shell_rcfile="${HOME}/.config/fish/config.fish"
+      rc_files+=("${HOME}/.config/fish/config.fish")
       ;;
     *)
-      shell_rcfile="${HOME}/.profile"
+      [[ -f "${HOME}/.profile" ]] && rc_files+=("${HOME}/.profile")
       ;;
   esac
-  
-  local xnuports_env='eval "$(/opt/xnuports/bin/pkg shellinit)"'
-  
-  # Check if already configured
-  if [[ -f "${shell_rcfile}" ]] && grep -qF "${xnuports_env}" "${shell_rcfile}"; then
-    info "Shell environment already configured in ${shell_rcfile}"
+
+  if [[ ${#rc_files[@]} -eq 0 ]]; then
+    info "No shell RC file found, skipping shell setup"
     return
   fi
-  
-  # Add to shell RC
-  {
-    echo ""
-    echo "# xnuports package manager"
-    echo "${xnuports_env}"
-  } >> "${shell_rcfile}"
-  
-  info "Added xnuports to ${shell_rcfile}"
-  
+
+  local xnuports_path_env="export PATH=\"${PREFIX}/bin:${PREFIX}/sbin:\$PATH\""
+  local xnuports_shellinit="eval \"\$(${PREFIX}/bin/pkg shellinit)\""
+  local xnuports_block="# xnuports package manager
+${xnuports_path_env}
+${xnuports_shellinit}"
+
+  for rcfile in "${rc_files[@]}"; do
+    # Check if already configured
+    if grep -qF "${xnuports_path_env}" "${rcfile}" 2>/dev/null; then
+      info "Shell environment already configured in ${rcfile}"
+      continue
+    fi
+
+    # Add to shell RC
+    {
+      echo ""
+      echo "${xnuports_block}"
+    } >> "${rcfile}"
+
+    info "Added xnuports to ${rcfile}"
+  done
+
   # Also add to current PATH
   export PATH="${PREFIX}/sbin:${PREFIX}/bin:${PATH}"
 }
