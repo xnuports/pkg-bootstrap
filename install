@@ -355,10 +355,9 @@ download_pkg_binary() {
     
     # Create prefix directories
     execute_sudo mkdir -p "${PREFIX}"
-    execute_sudo chown "${USER}:$(id -gn)" "${PREFIX}"
     
-    # Extract
-    execute tar -xJf "${tarball}" -C "${PREFIX}"
+    # Extract as root so ownership is preserved
+    execute_sudo tar -xJf "${tarball}" -C "${PREFIX}"
     
     rm -rf "${tmpdir}"
     return 0
@@ -411,10 +410,9 @@ download_pkg_utils_binary() {
 
     # Create prefix directories
     execute_sudo mkdir -p "${PREFIX}"
-    execute_sudo chown "${USER}:$(id -gn)" "${PREFIX}"
 
-    # Extract
-    execute tar -xJf "${tarball}" -C "${PREFIX}"
+    # Extract as root so ownership is preserved
+    execute_sudo tar -xJf "${tarball}" -C "${PREFIX}"
 
     rm -rf "${tmpdir}"
     return 0
