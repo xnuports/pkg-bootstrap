@@ -202,88 +202,63 @@ fi
 
 # ─── Xcode Command Line Tools ────────────────────────────────────────────────
 
-if [[ "${BUILD_FROM_SOURCE}" -eq 1 ]]; then
-  ohai "Checking for Xcode Command Line Tools..."
-  if ! xcrun --find clang >/dev/null 2>&1; then
-    if [[ -z "${NONINTERACTIVE-}" ]]; then
-      ohai "Installing Xcode Command Line Tools (this will open a GUI prompt)..."
-      xcode-select --install
-      echo "Press any key when the installation has completed."
-      read -r -n 1 -s
-    else
-      ohai "Xcode Command Line Tools not found. Installing..."
-      xcode-select --install 2>/dev/null || true
-      while ! xcrun --find clang >/dev/null 2>&1; do
-        sleep 5
-      done
-    fi
+ohai "Checking for Xcode Command Line Tools..."
+if ! xcrun --find clang >/dev/null 2>&1; then
+  if [[ -z "${NONINTERACTIVE-}" ]]; then
+    ohai "Xcode Command Line Tools are not installed."
+    read -r -p "Do you want to install them now? [Y/n] " response
+    case "${response}" in
+      [nN][oO]|[nN])
+        abort "Xcode Command Line Tools are required. Please install them manually with: xcode-select --install"
+        ;;
+      *)
+        xcode-select --install
+        echo "Press any key when the installation has completed."
+        read -r -n 1 -s
+        ;;
+    esac
+  else
+    ohai "Xcode Command Line Tools not found. Installing..."
+    xcode-select --install 2>/dev/null || true
+    while ! xcrun --find clang >/dev/null 2>&1; do
+      sleep 5
+    done
   fi
-  info "Xcode Command Line Tools found."
 fi
+info "Xcode Command Line Tools found."
 
 # ─── Homebrew ───────────────────────────────────────────────────────────────
 
-ensure_brew() {
-  if command -v brew >/dev/null 2>&1; then
-    info "Homebrew found at: $(command -v brew)"
-    return 0
-  fi
-  
-  if [[ -d "/opt/homebrew" ]] && [[ -x "/opt/homebrew/bin/brew" ]]; then
-    info "Found Homebrew at /opt/homebrew/bin/brew"
-    eval "$(/opt/homebrew/bin/brew shellenv)"
-    return 0
-  fi
-  
-  if [[ -d "/usr/local/Homebrew" ]] && [[ -x "/usr/local/bin/brew" ]]; then
-    info "Found Homebrew at /usr/local/bin/brew"
-    return 0
-  fi
-  
-  return 1
-}
-
-install_brew_dependencies() {
-  local -a brew_deps=()
-  
-  # Check for required libraries
-  if ! pkg-config --exists libarchive 2>/dev/null; then
-    brew_deps+=(libarchive)
-  fi
-  
-  if ! pkg-config --exists openssl 2>/dev/null; then
-    brew_deps+=(openssl)
-  fi
-  
-  if [[ ${#brew_deps[@]} -gt 0 ]]; then
-    ohai "Installing build dependencies via Homebrew: ${brew_deps[*]}"
-    
-    if ! ensure_brew; then
-      warn "Homebrew not found. Attempting to install Homebrew..."
-      if [[ -z "${NONINTERACTIVE-}" ]]; then
+ohai "Checking for Homebrew..."
+if ! ensure_brew; then
+  if [[ -z "${NONINTERACTIVE-}" ]]; then
+    ohai "Homebrew is not installed."
+    read -r -p "Do you want to install it now? [Y/n] " response
+    case "${response}" in
+      [nN][oO]|[nN])
+        abort "Homebrew is required. Please install it manually first:\n  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+        ;;
+      *)
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-      else
-        abort "Homebrew is required to build pkg on macOS. Please install Homebrew first:\n  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
-      fi
-      
-      # Add brew to PATH for this session
-      if [[ -d "/opt/homebrew" ]]; then
         eval "$(/opt/homebrew/bin/brew shellenv)"
-      elif [[ -d "/usr/local/Homebrew" ]]; then
-        eval "$(/usr/local/bin/brew shellenv)"
-      fi
-    fi
-    
-    execute brew install "${brew_deps[@]}"
-    
-    # Set PKG_CONFIG_PATH for brew-installed libarchive
-    local brew_libarchive_pkgconfig
-    brew_libarchive_pkgconfig="$(brew --prefix libarchive)/lib/pkgconfig"
-    if [[ -d "${brew_libarchive_pkgconfig}" ]]; then
-      export PKG_CONFIG_PATH="${brew_libarchive_pkgconfig}${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}"
+        ;;
+    esac
+  else
+    ohai "Homebrew not found. Installing..."
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    if [[ -d "/opt/homebrew" ]]; then
+      eval "$(/opt/homebrew/bin/brew shellenv)"
+    elif [[ -d "/usr/local/Homebrew" ]]; then
+      eval "$(/usr/local/bin/brew shellenv)"
     fi
   fi
-}
+fi
+info "Homebrew found at: $(command -v brew)"
+
+# ─── Build Dependencies ─────────────────────────────────────────────────────
+
+ohai "Checking build dependencies..."
+install_brew_dependencies
 
 # ─── Sudo Access ────────────────────────────────────────────────────────────
 
