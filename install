@@ -651,7 +651,7 @@ setup_shell_environment() {
   fi
 
   local xnuports_path_env="export PATH=\"${PREFIX}/bin:${PREFIX}/sbin:\$PATH\""
-  local xnuports_shellinit="eval \"\$(${PREFIX}/bin/pkg shellinit)\""
+  local xnuports_shellinit="source \"${PREFIX}/etc/pkg/env.sh\""
   local xnuports_block="# xnuports package manager
 ${xnuports_path_env}
 ${xnuports_shellinit}"
@@ -740,7 +740,7 @@ main() {
   echo "To get started:"
   echo "  1. Restart your shell or run: source ${shell_rcfile:-your shell RC file}"
   echo "  2. Initialize pkg in your current shell:"
-  echo "       eval \"\$(${PREFIX}/bin/pkg shellinit)\""
+  echo "       source ${PREFIX}/etc/pkg/env.sh"
   echo "  3. Update repositories:"
   echo "       ${PREFIX}/bin/pkg update"
   echo "  4. Install packages:"

@@ -49,7 +49,7 @@ Restart your shell or run:
 
 ```bash
 # Initialize pkg in your current shell
-eval "$(/opt/xnuports/bin/pkg shellinit)"
+source /opt/xnuports/etc/pkg/env.sh
 
 # Update package repository
 pkg update
@@ -89,7 +89,7 @@ pkg install <package-name>
 1. **Binary First**: The script downloads pre-built `pkg` and `pkg_utils` binaries from GitHub Releases.
 2. **Source Build (opt-in)**: Pass `--build-from-source` to compile locally if binaries are not yet available for your platform.
 3. **Configuration**: Creates `/opt/xnuports/etc/pkg/` with repository and local configuration.
-4. **Shell Integration**: Adds `eval "$(/opt/xnuports/bin/pkg shellinit)"` to your shell RC file.
+4. **Shell Integration**: Adds `source /opt/xnuports/etc/pkg/env.sh` to your shell RC file.
 
 ## Package Format
 
