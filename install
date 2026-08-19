@@ -530,7 +530,18 @@ setup_directories() {
   )
   
   execute_sudo mkdir -p "${dirs[@]}"
-  execute_sudo chown -R "${USER}:$(id -gn)" "${PREFIX}"
+  execute_sudo chown -R "root:wheel" "${PREFIX}"
+  
+  local writable_dirs=(
+    "${PREFIX}/var/db/pkg"
+    "${PREFIX}/var/cache/pkg"
+    "${PREFIX}/var/tmp"
+    "${PREFIX}/distfiles"
+  )
+  for dir in "${writable_dirs[@]}"; do
+    execute_sudo chown "${USER}:$(id -gn)" "${dir}"
+  done
+  
   execute_sudo chmod -R u+rwX,go+rX,go-w "${PREFIX}"
 }
 
@@ -765,7 +776,7 @@ main() {
   echo "  2. Initialize pkg in your current shell:"
   echo "       source ${PREFIX}/etc/pkg/env.sh"
   echo "  3. Update repositories:"
-  echo "       ${PREFIX}/bin/pkg update"
+  echo "       sudo -E bash -c 'source ${PREFIX}/etc/pkg/env.sh && export PATH=\"${PREFIX}/sbin:${PREFIX}/bin:\$PATH\" && pkg update'"
   echo "  4. Install packages:"
   echo "       ${PREFIX}/bin/pkg install <package>"
   echo
