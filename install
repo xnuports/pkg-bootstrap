@@ -327,7 +327,7 @@ download_pkg_binary() {
   if [[ "${version}" == "latest" ]]; then
     # Get latest release tag
     local latest_tag
-    latest_tag="$(curl -fsSL "${XNUPORTS_PKG_RELEASES}/latest" | grep -o 'tag/[^"]*' | head -1 | sed 's|tag/||')" || true
+    latest_tag="$(curl -fsSL "${XNUPORTS_PKG_RELEASES}/latest" | grep -o 'releases/tag/v[^"]*' | head -1 | sed 's|.*releases/tag/||')" || true
     if [[ -z "${latest_tag}" ]]; then
       # Fallback: query GitHub API
       latest_tag="$(curl -fsSL "https://api.github.com/repos/xnuports/pkg/releases/latest" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": "\([^"]*\)".*/\1/')" || true
@@ -381,7 +381,7 @@ download_pkg_utils_binary() {
   if [[ "${version}" == "latest" ]]; then
     # Get latest release tag
     local latest_tag
-    latest_tag="$(curl -fsSL "${XNUPORTS_PKG_UTILS_RELEASES}/latest" | grep -o 'tag/[^"]*' | head -1 | sed 's|tag/||')" || true
+    latest_tag="$(curl -fsSL "${XNUPORTS_PKG_UTILS_RELEASES}/latest" | grep -o 'releases/tag/v[^"]*' | head -1 | sed 's|.*releases/tag/||')" || true
     if [[ -z "${latest_tag}" ]]; then
       # Fallback: query GitHub API
       latest_tag="$(curl -fsSL "https://api.github.com/repos/xnuports/pkg_utils/releases/latest" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": "\([^"]*\)".*/\1/')" || true
