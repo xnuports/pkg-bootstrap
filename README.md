@@ -17,13 +17,13 @@ Bootstrap script to install [FreeBSD's `pkg`](https://github.com/freebsd/pkg) pa
 ## Installation
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xnuports/pkg-bootstrap/main/install | bash
+curl -fsSL https://raw.githubusercontent.com/xnuports/pkg-bootstrap/master/install | bash
 ```
 
 Or download and run directly:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xnuports/pkg-bootstrap/main/install -o install
+curl -fsSL https://raw.githubusercontent.com/xnuports/pkg-bootstrap/master/install -o install
 bash install
 ```
 
@@ -105,7 +105,7 @@ Packages follow the FreeBSD `pkg` format (`.txz` archives) and install to `/opt/
 ## Uninstall
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xnuports/pkg-bootstrap/main/uninstall | bash
+curl -fsSL https://raw.githubusercontent.com/xnuports/pkg-bootstrap/master/uninstall | bash
 ```
 
 Or if you already have it:

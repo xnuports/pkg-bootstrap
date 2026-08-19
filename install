@@ -3,7 +3,7 @@
 # Bootstraps FreeBSD's pkg package manager on macOS
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/xnuports/pkg-bootstrap/main/install | bash
+#   curl -fsSL https://raw.githubusercontent.com/xnuports/pkg-bootstrap/master/install | bash
 #   ./install [--yes] [--verbose] [--prefix=PATH]
 #
 # Environment:
