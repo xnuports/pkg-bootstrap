@@ -554,8 +554,8 @@ PKG_CACHEDIR = "${PREFIX}/var/cache/pkg";
 # Download cache
 PKG_DOWNLOAD_CACHE = "${PREFIX}/distfiles";
 
-# Default repository
-PACKAGESITE = "pkg+https://xnuports.github.io/packages/macOS-${XNUPORTS_ARCH}/latest";
+# Default repository is configured via REPOS_DIR below
+# PACKAGESITE is no longer supported in pkg.conf
 
 # Repositories configuration
 REPOS_DIR = ["${PREFIX}/etc/pkg/repos", "/etc/pkg/repos"];
@@ -588,8 +588,7 @@ fi
 XNUPORTS_OS_VERSION="${XNUPORTS_OS_VERSION:-14}"
 
 ABI = "Darwin:${XNUPORTS_OS_VERSION}:${XNUPORTS_ARCH_PKG}";
-ALTABI = "Darwin:${XNUPORTS_OS_VERSION}:${XNUPORTS_ARCH_PKG}";
-PKG_ABI = "Darwin:${XNUPORTS_OS_VERSION}:${XNUPORTS_ARCH_PKG}";
+OSVERSION = "${XNUPORTS_OS_VERSION}";
 
 # Default to installing dependencies automatically
 ASSUME_ALWAYS_YES = false;
