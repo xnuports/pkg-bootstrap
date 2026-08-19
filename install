@@ -541,6 +541,23 @@ setup_pkg_config() {
   
   local pkg_conf="${PREFIX}/etc/pkg.conf"
   
+  # Detect architecture for ABI string
+  local XNUPORTS_ARCH_PKG
+  if [[ "${XNUPORTS_ARCH}" == "arm64" ]]; then
+    XNUPORTS_ARCH_PKG="aarch64"
+  else
+    XNUPORTS_ARCH_PKG="${XNUPORTS_ARCH}"
+  fi
+  
+  # Detect macOS major version for ABI string
+  local XNUPORTS_OS_VERSION
+  if command -v sw_vers >/dev/null 2>&1; then
+    XNUPORTS_OS_VERSION="$(sw_vers -productVersion 2>/dev/null | cut -d. -f1)"
+  else
+    XNUPORTS_OS_VERSION="$(uname -r | cut -d. -f1)"
+  fi
+  XNUPORTS_OS_VERSION="${XNUPORTS_OS_VERSION:-14}"
+  
   cat > "${pkg_conf}" <<PKGCONF
 # xnuports/pkg configuration
 # See pkg.conf(5) for details
@@ -573,22 +590,8 @@ PKG_SYSCONFDIR = "${PREFIX}/etc";
 WRKDIRPREFIX = "${PREFIX}/var/tmp";
 
 # Object format (for packages built on this system)
-if [[ "${XNUPORTS_ARCH}" == "arm64" ]]; then
-  XNUPORTS_ARCH_PKG="aarch64"
-else
-  XNUPORTS_ARCH_PKG="${XNUPORTS_ARCH}"
-fi
-
-# Detect macOS major version for ABI string
-if command -v sw_vers >/dev/null 2>&1; then
-  XNUPORTS_OS_VERSION="$(sw_vers -productVersion 2>/dev/null | cut -d. -f1)"
-else
-  XNUPORTS_OS_VERSION="$(uname -r | cut -d. -f1)"
-fi
-XNUPORTS_OS_VERSION="${XNUPORTS_OS_VERSION:-14}"
-
 ABI = "Darwin:${XNUPORTS_OS_VERSION}:${XNUPORTS_ARCH_PKG}";
-OSVERSION = "${XNUPORTS_OS_VERSION}";
+OSVERSION = ${XNUPORTS_OS_VERSION};
 
 # Default to installing dependencies automatically
 ASSUME_ALWAYS_YES = false;
