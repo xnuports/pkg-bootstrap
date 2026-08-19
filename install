@@ -555,7 +555,7 @@ PKG_CACHEDIR = "${PREFIX}/var/cache/pkg";
 PKG_DOWNLOAD_CACHE = "${PREFIX}/distfiles";
 
 # Default repository
-PACKAGESITE = "pkg+https://xnuports.github.io/packages/macOS-${XNUPORTS_ARCH}/latest";
+PACKAGESITE = "pkg+https://xnuports.github.io/xnuports/packages/macOS-${XNUPORTS_ARCH}/latest";
 
 # Repositories configuration
 REPOS_DIR = ["${PREFIX}/etc/pkg/repos"];
@@ -595,7 +595,7 @@ PKGCONF
   local repo_conf="${PREFIX}/etc/pkg/repos/xnuports.conf"
   cat > "${repo_conf}" <<REPOCONF
 xnuports: {
-  url: "pkg+https://xnuports.github.io/packages/macOS-${XNUPORTS_ARCH}/latest",
+  url: "pkg+https://xnuports.github.io/xnuports/packages/macOS-${XNUPORTS_ARCH}/latest",
   enabled: true,
   mirror_type: "none",
   signature_type: "none",
