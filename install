@@ -634,8 +634,8 @@ REPOCONF
   
   info "Wrote repository configuration to ${repo_conf}"
   
-  # Chown configs back to root so pkg accepts them
-  execute_sudo chown root:wheel "${pkg_conf}" "${repo_conf}" "${PREFIX}/etc/pkg/repos"
+  # Chown configs and parent dirs back to root so pkg accepts them
+  execute_sudo chown root:wheel "${pkg_conf}" "${repo_conf}" "${PREFIX}/etc" "${PREFIX}/etc/pkg" "${PREFIX}/etc/pkg/repos"
   
   # Create symlink so pkg can find its config at the compiled-in PREFIX (/tmp/pkg-install)
   if [[ ! -e "/tmp/pkg-install" ]]; then
