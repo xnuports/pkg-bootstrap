@@ -376,7 +376,7 @@ download_pkg_binary() {
   
   info "Found release version: ${version}"
   
-  asset_name="$(curl -fsSL "https://api.github.com/repos/xnuports/pkg/releases/tags/${version}" | grep -o '"name": "pkg-[^"]*"' | head -1 | sed 's/"name": "\(.*\)"/\1/')" || true
+  asset_name="$(curl -fsSL "https://api.github.com/repos/xnuports/pkg/releases/tags/${version}" | grep -o '"name": "pkg-[^"]*\.tar\.xz"' | head -1 | sed 's/"name": "\(.*\)"/\1/')" || true
   if [[ -z "${asset_name}" ]]; then
     asset_name="pkg-${os}-${arch}.tar.xz"
   fi
@@ -432,7 +432,7 @@ download_pkg_utils_binary() {
 
   info "Found pkg_utils release version: ${version}"
 
-  asset_name="$(curl -fsSL "https://api.github.com/repos/xnuports/pkg_utils/releases/tags/${version}" | grep -o '"name": "pkg_utils-[^"]*"' | head -1 | sed 's/"name": "\(.*\)"/\1/')" || true
+  asset_name="$(curl -fsSL "https://api.github.com/repos/xnuports/pkg_utils/releases/tags/${version}" | grep -o '"name": "pkg_utils-[^"]*\.tar\.xz"' | head -1 | sed 's/"name": "\(.*\)"/\1/')" || true
   if [[ -z "${asset_name}" ]]; then
     asset_name="pkg_utils-${os}-${arch}.tar.xz"
   fi
