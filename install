@@ -564,7 +564,7 @@ setup_pkg_config() {
   # Temporarily make etc writable to generate configs
   execute_sudo chown "${USER}:$(id -gn)" "${PREFIX}/etc" "${PREFIX}/etc/pkg" "${PREFIX}/etc/pkg/repos"
   
-  cat > "${pkg_conf}" <<PKGCONF
+  execute_sudo tee "${pkg_conf}" > /dev/null <<PKGCONF
 # xnuports/pkg configuration
 # See pkg.conf(5) for details
 
@@ -615,7 +615,7 @@ PKGCONF
   
   # Create default repository configuration
   local repo_conf="${PREFIX}/etc/pkg/repos/xnuports.conf"
-  cat > "${repo_conf}" <<REPOCONF
+  execute_sudo tee "${repo_conf}" > /dev/null <<REPOCONF
 xnuports: {
   url: "https://xnuports.github.io/packages/macOS-${XNUPORTS_ARCH}/latest",
   enabled: true,
@@ -629,7 +629,7 @@ REPOCONF
   
   # Set PKG_CONFIG environment for the installed pkg
   local env_script="${PREFIX}/etc/pkg/env.sh"
-  cat > "${env_script}" <<'ENVSCRIPT'
+  execute_sudo tee "${env_script}" > /dev/null <<'ENVSCRIPT'
 #!/bin/sh
 # xnuports pkg environment
 export XNUPORTS_PREFIX="/opt/xnuports"
