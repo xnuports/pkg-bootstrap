@@ -758,6 +758,10 @@ main() {
   # Setup pkg configuration
   setup_pkg_config
   
+  # Initialize package database
+  ohai "Initializing package database..."
+  execute_sudo "${PREFIX}/bin/pkg" -C "${PREFIX}/etc/pkg.conf" update
+  
   # Setup shell environment
   setup_shell_environment
   
