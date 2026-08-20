@@ -665,7 +665,7 @@ ENVSCRIPT
   
   # Create symlink helper script
   local symlink_script="${PREFIX}/bin/xpkg-symlinks"
-  cat > "${symlink_script}" <<'SYMLINKS'
+  execute_sudo tee "${symlink_script}" > /dev/null <<'SYMLINKS'
 #!/bin/sh
 # Create symlinks for installed packages
 PREFIX="${XNUPORTS_PREFIX:-/opt/xnuports}"
