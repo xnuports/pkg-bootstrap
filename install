@@ -552,7 +552,7 @@ setup_pkg_config() {
   local pkg_conf="${PREFIX}/etc/pkg.conf"
   
   # Temporarily make etc writable for config generation
-  execute_sudo chown "${USER}:$(id -gn)}" "${PREFIX}/etc" "${PREFIX}/etc/pkg" "${PREFIX}/etc/pkg/repos"
+  execute_sudo chown "${USER}:$(id -gn)" "${PREFIX}/etc" "${PREFIX}/etc/pkg" "${PREFIX}/etc/pkg/repos"
   
   # Detect architecture for ABI string
   local XNUPORTS_ARCH_PKG
