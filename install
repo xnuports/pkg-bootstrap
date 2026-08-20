@@ -643,11 +643,15 @@ export PORTSDIR="/opt/xnuports/xnuports"
 pkg() {
   local real_pkg="${XNUPORTS_PREFIX}/sbin/pkg"
   local result
-  result="$(${real_pkg} "$@" 2>&1)"
+  if [[ "$1" == "install" || "$1" == "upgrade" || "$1" == "autoremove" ]]; then
+    result="$(sudo -E "${real_pkg}" "$@" 2>&1)"
+  else
+    result="$("${real_pkg}" "$@" 2>&1)"
+  fi
   local exit_code=$?
   echo "${result}"
   if [[ "$1" == "install" || "$1" == "upgrade" || "$1" == "autoremove" ]] && [[ ${exit_code} -eq 0 ]]; then
-    "${XNUPORTS_PREFIX}/bin/xpkg-symlinks" 2>/dev/null || true
+    sudo -E "${XNUPORTS_PREFIX}/bin/xpkg-symlinks" 2>/dev/null || true
   fi
   return ${exit_code}
 }
