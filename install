@@ -638,6 +638,19 @@ export PKG_CACHEDIR="/opt/xnuports/var/cache/pkg"
 export PKG_DOWNLOAD_CACHE="/opt/xnuports/distfiles"
 export PKG_SYSCONFDIR="/opt/xnuports/etc"
 export PORTSDIR="/opt/xnuports/xnuports"
+
+# Wrapper pkg function that creates symlinks after install/upgrade
+pkg() {
+  local real_pkg="${XNUPORTS_PREFIX}/sbin/pkg"
+  local result
+  result="$(${real_pkg} "$@" 2>&1)"
+  local exit_code=$?
+  echo "${result}"
+  if [[ "$1" == "install" || "$1" == "upgrade" || "$1" == "autoremove" ]] && [[ ${exit_code} -eq 0 ]]; then
+    "${XNUPORTS_PREFIX}/bin/xpkg-symlinks" 2>/dev/null || true
+  fi
+  return ${exit_code}
+}
 ENVSCRIPT
   
   # Chown configs and parent dirs back to root so pkg accepts them
@@ -649,6 +662,31 @@ ENVSCRIPT
   info "Created symlink /tmp/pkg-install -> ${PREFIX}"
   
   execute_sudo chmod +x "${env_script}"
+  
+  # Create symlink helper script
+  local symlink_script="${PREFIX}/bin/xpkg-symlinks"
+  cat > "${symlink_script}" <<'SYMLINKS'
+#!/bin/sh
+# Create symlinks for installed packages
+PREFIX="${XNUPORTS_PREFIX:-/opt/xnuports}"
+for pkgdir in "${PREFIX}/opt/"*; do
+  if [ -d "${pkgdir}" ]; then
+    pkgname="$(basename "${pkgdir}")"
+    for subdir in bin sbin libexec lib include share; do
+      if [ -d "${pkgdir}/${subdir}" ]; then
+        mkdir -p "${PREFIX}/${subdir}"
+        for f in "${pkgdir}/${subdir}"/*; do
+          fname="$(basename "${f}")"
+          ln -sf "${pkgdir}/${subdir}/${fname}" "${PREFIX}/${subdir}/${fname}" 2>/dev/null || true
+        done
+      fi
+    done
+  fi
+done
+SYMLINKS
+  execute_sudo chmod +x "${symlink_script}"
+  execute_sudo chown root:wheel "${symlink_script}"
+  info "Created symlink helper script at ${symlink_script}"
 }
 
 # ─── Shell Environment ──────────────────────────────────────────────────────
