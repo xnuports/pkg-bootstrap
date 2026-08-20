@@ -751,9 +751,9 @@ main() {
   ohai "Installing pkg for macOS ${XNUPORTS_ARCH} to ${PREFIX}"
   
   # Check if already installed
-  if [[ -x "${PREFIX}/bin/pkg" ]]; then
+  if [[ -x "${PREFIX}/sbin/pkg" ]]; then
     local installed_version
-    installed_version="$("${PREFIX}/bin/pkg" -v 2>/dev/null || echo "unknown")"
+    installed_version="$("${PREFIX}/sbin/pkg" -v 2>/dev/null || echo "unknown")"
     warn "xnuports/pkg is already installed at ${PREFIX} (version: ${installed_version})"
     
     if [[ -z "${NONINTERACTIVE-}" ]]; then
@@ -798,7 +798,7 @@ main() {
   
   # Initialize package database
   ohai "Initializing package database..."
-  execute_sudo "${PREFIX}/bin/pkg" -C "${PREFIX}/etc/pkg.conf" update
+  execute_sudo "${PREFIX}/sbin/pkg" -C "${PREFIX}/etc/pkg.conf" update
   
   # Setup shell environment
   setup_shell_environment
@@ -816,7 +816,7 @@ main() {
   echo "  3. Update repositories:"
   echo "       sudo -E bash -c 'source ${PREFIX}/etc/pkg/env.sh && export PATH=\"${PREFIX}/sbin:${PREFIX}/bin:\$PATH\" && pkg update'"
   echo "  4. Install packages:"
-  echo "       ${PREFIX}/bin/pkg install <package>"
+  echo "       ${PREFIX}/sbin/pkg install <package>"
   echo
   echo "Configuration:"
   echo "  Prefix:       ${PREFIX}"
@@ -832,9 +832,9 @@ main() {
   echo
   
   # Verify installation
-  if [[ -x "${PREFIX}/bin/pkg" ]]; then
+  if [[ -x "${PREFIX}/sbin/pkg" ]]; then
     ohai "Verifying installation..."
-    "${PREFIX}/bin/pkg" --version || true
+    "${PREFIX}/sbin/pkg" --version || true
     echo
   fi
 }
