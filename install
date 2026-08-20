@@ -355,17 +355,15 @@ download_pkg_binary() {
   local version="${1:-latest}"
   local os="Darwin"
   local arch="${XNUPORTS_ARCH}"
-  local asset_name="pkg-${os}-${arch}.tar.xz"
+  local asset_name=""
   local download_url=""
   
   ohai "Attempting to download pre-built pkg binary..."
   
   if [[ "${version}" == "latest" ]]; then
-    # Get latest release tag
     local latest_tag
     latest_tag="$(curl -fsSL "${XNUPORTS_PKG_RELEASES}/latest" | grep -o 'releases/tag/v[^"]*' | head -1 | sed 's|.*releases/tag/||')" || true
     if [[ -z "${latest_tag}" ]]; then
-      # Fallback: query GitHub API
       latest_tag="$(curl -fsSL "https://api.github.com/repos/xnuports/pkg/releases/latest" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": "\([^"]*\)".*/\1/')" || true
     fi
     version="${latest_tag}"
@@ -377,11 +375,16 @@ download_pkg_binary() {
   fi
   
   info "Found release version: ${version}"
+  
+  asset_name="$(curl -fsSL "https://api.github.com/repos/xnuports/pkg/releases/tags/${version}" | grep -o '"name": "pkg-[^"]*"' | head -1 | sed 's/"name": "\(.*\)"/\1/')" || true
+  if [[ -z "${asset_name}" ]]; then
+    asset_name="pkg-${os}-${arch}.tar.xz"
+  fi
+  
   download_url="${XNUPORTS_PKG_RELEASES}/download/${version}/${asset_name}"
   ohai "Downloading ${asset_name}..."
   info "URL: ${download_url}"
   
-  # Try to download
   local tmpdir
   tmpdir="$(mktemp -d)"
   local tarball="${tmpdir}/${asset_name}"
@@ -389,13 +392,8 @@ download_pkg_binary() {
   if curl -fsSL --retry 3 --connect-timeout 10 -o "${tarball}" "${download_url}"; then
     info "Downloaded binary tarball successfully."
     
-    # Install to /opt/xnuports/opt/pkg/ like pkg install does
     execute_sudo mkdir -p "${PREFIX}/opt/pkg"
-    
-    # Extract as root so ownership is preserved
     execute_sudo tar -xJf "${tarball}" -C "${PREFIX}/opt/pkg"
-    
-    # Create file symlinks from /opt/xnuports/opt/pkg/ to /opt/xnuports/
     create_pkg_symlinks
     
     rm -rf "${tmpdir}"
@@ -413,17 +411,15 @@ download_pkg_utils_binary() {
   local version="${1:-latest}"
   local os="Darwin"
   local arch="${XNUPORTS_ARCH}"
-  local asset_name="pkg_utils-${os}-${arch}.tar.xz"
+  local asset_name=""
   local download_url=""
 
   ohai "Attempting to download pre-built pkg_utils binary..."
 
   if [[ "${version}" == "latest" ]]; then
-    # Get latest release tag
     local latest_tag
     latest_tag="$(curl -fsSL "${XNUPORTS_PKG_UTILS_RELEASES}/latest" | grep -o 'releases/tag/v[^"]*' | head -1 | sed 's|.*releases/tag/||')" || true
     if [[ -z "${latest_tag}" ]]; then
-      # Fallback: query GitHub API
       latest_tag="$(curl -fsSL "https://api.github.com/repos/xnuports/pkg_utils/releases/latest" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": "\([^"]*\)".*/\1/')" || true
     fi
     version="${latest_tag}"
@@ -435,11 +431,16 @@ download_pkg_utils_binary() {
   fi
 
   info "Found pkg_utils release version: ${version}"
+
+  asset_name="$(curl -fsSL "https://api.github.com/repos/xnuports/pkg_utils/releases/tags/${version}" | grep -o '"name": "pkg_utils-[^"]*"' | head -1 | sed 's/"name": "\(.*\)"/\1/')" || true
+  if [[ -z "${asset_name}" ]]; then
+    asset_name="pkg_utils-${os}-${arch}.tar.xz"
+  fi
+
   download_url="${XNUPORTS_PKG_UTILS_RELEASES}/download/${version}/${asset_name}"
   ohai "Downloading ${asset_name}..."
   info "URL: ${download_url}"
 
-  # Try to download
   local tmpdir
   tmpdir="$(mktemp -d)"
   local tarball="${tmpdir}/${asset_name}"
@@ -447,13 +448,8 @@ download_pkg_utils_binary() {
   if curl -fsSL --retry 3 --connect-timeout 10 -o "${tarball}" "${download_url}"; then
     info "Downloaded pkg_utils binary tarball successfully."
 
-    # Install to /opt/xnuports/opt/pkg_utils/ like pkg install does
     execute_sudo mkdir -p "${PREFIX}/opt/pkg_utils"
-
-    # Extract as root so ownership is preserved
     execute_sudo tar -xJf "${tarball}" -C "${PREFIX}/opt/pkg_utils"
-
-    # Create file symlinks from /opt/xnuports/opt/pkg_utils/ to /opt/xnuports/
     create_pkg_symlinks
 
     rm -rf "${tmpdir}"
@@ -480,7 +476,7 @@ build_pkg_utils_from_source() {
   cd pkg-utils-src
 
   ohai "Building pkg_utils..."
-  execute make all PREFIX="${PREFIX}" \
+  execute make all PREFIX="${PREFIX}/opt/pkg_utils" \
     PKG_REPO="${XNUPORTS_REPO}" \
     PORTS_REPO="https://github.com/freebsd/freebsd-ports.git" \
     BUILD_DIR="${build_dir}/_build"
