@@ -637,6 +637,12 @@ REPOCONF
   # Chown configs back to root so pkg accepts them
   execute_sudo chown root:wheel "${pkg_conf}" "${repo_conf}" "${PREFIX}/etc/pkg/repos"
   
+  # Create symlink so pkg can find its config at the compiled-in PREFIX (/tmp/pkg-install)
+  if [[ ! -e "/tmp/pkg-install" ]]; then
+    execute_sudo ln -s "${PREFIX}" /tmp/pkg-install
+    info "Created symlink /tmp/pkg-install -> ${PREFIX}"
+  fi
+  
   # Set PKG_CONFIG environment for the installed pkg
   local env_script="${PREFIX}/etc/pkg/env.sh"
   cat > "${env_script}" <<'ENVSCRIPT'
