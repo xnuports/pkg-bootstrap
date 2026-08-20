@@ -313,6 +313,42 @@ execute_sudo() {
   fi
 }
 
+# ─── Symlink Management ──────────────────────────────────────────────────────
+
+create_pkg_symlinks() {
+  local prefix="${PREFIX}"
+  local pkg_dir="${prefix}/opt/pkg"
+  local utils_dir="${prefix}/opt/pkg_utils"
+
+  # Symlink pkg files
+  if [[ -d "${pkg_dir}" ]]; then
+    for subdir in bin sbin lib libexec include share man; do
+      if [[ -d "${pkg_dir}/${subdir}" ]]; then
+        execute_sudo mkdir -p "${prefix}/${subdir}"
+        for f in "${pkg_dir}/${subdir}"/*; do
+          local fname
+          fname="$(basename "${f}")"
+          execute_sudo ln -sf "${pkg_dir}/${subdir}/${fname}" "${prefix}/${subdir}/${fname}"
+        done
+      fi
+    done
+  fi
+
+  # Symlink pkg_utils files
+  if [[ -d "${utils_dir}" ]]; then
+    for subdir in bin sbin lib libexec include share man; do
+      if [[ -d "${utils_dir}/${subdir}" ]]; then
+        execute_sudo mkdir -p "${prefix}/${subdir}"
+        for f in "${utils_dir}/${subdir}"/*; do
+          local fname
+          fname="$(basename "${f}")"
+          execute_sudo ln -sf "${utils_dir}/${subdir}/${fname}" "${prefix}/${subdir}/${fname}"
+        done
+      fi
+    done
+  fi
+}
+
 # ─── Binary Download ────────────────────────────────────────────────────────
 
 download_pkg_binary() {
@@ -353,11 +389,14 @@ download_pkg_binary() {
   if curl -fsSL --retry 3 --connect-timeout 10 -o "${tarball}" "${download_url}"; then
     info "Downloaded binary tarball successfully."
     
-    # Create prefix directories
-    execute_sudo mkdir -p "${PREFIX}"
+    # Install to /opt/xnuports/opt/pkg/ like pkg install does
+    execute_sudo mkdir -p "${PREFIX}/opt/pkg"
     
     # Extract as root so ownership is preserved
-    execute_sudo tar -xJf "${tarball}" -C "${PREFIX}"
+    execute_sudo tar -xJf "${tarball}" -C "${PREFIX}/opt/pkg"
+    
+    # Create file symlinks from /opt/xnuports/opt/pkg/ to /opt/xnuports/
+    create_pkg_symlinks
     
     rm -rf "${tmpdir}"
     return 0
@@ -408,11 +447,14 @@ download_pkg_utils_binary() {
   if curl -fsSL --retry 3 --connect-timeout 10 -o "${tarball}" "${download_url}"; then
     info "Downloaded pkg_utils binary tarball successfully."
 
-    # Create prefix directories
-    execute_sudo mkdir -p "${PREFIX}"
+    # Install to /opt/xnuports/opt/pkg_utils/ like pkg install does
+    execute_sudo mkdir -p "${PREFIX}/opt/pkg_utils"
 
     # Extract as root so ownership is preserved
-    execute_sudo tar -xJf "${tarball}" -C "${PREFIX}"
+    execute_sudo tar -xJf "${tarball}" -C "${PREFIX}/opt/pkg_utils"
+
+    # Create file symlinks from /opt/xnuports/opt/pkg_utils/ to /opt/xnuports/
+    create_pkg_symlinks
 
     rm -rf "${tmpdir}"
     return 0
@@ -443,9 +485,12 @@ build_pkg_utils_from_source() {
     PORTS_REPO="https://github.com/freebsd/freebsd-ports.git" \
     BUILD_DIR="${build_dir}/_build"
 
-  ohai "Installing pkg_utils to ${PREFIX}..."
-  execute_sudo make install PREFIX="${PREFIX}" \
+  ohai "Installing pkg_utils to ${PREFIX}/opt/pkg_utils..."
+  execute_sudo make install PREFIX="${PREFIX}/opt/pkg_utils" \
     BUILD_DIR="${build_dir}/_build"
+
+  # Create file symlinks from /opt/xnuports/opt/pkg_utils/ to /opt/xnuports/
+  create_pkg_symlinks
 
   cd /
   rm -rf "${build_dir}"
@@ -476,7 +521,7 @@ build_pkg_from_source() {
   
   ohai "Configuring pkg with prefix=${PREFIX}..."
   
-  local configure_cmd=(./configure --prefix="${PREFIX}" --with-libarchive.pc --with-openssl.pc)
+  local configure_cmd=(./configure --prefix="${PREFIX}/opt/pkg" --with-libarchive.pc --with-openssl.pc)
   
   if [[ "${XNUPORTS_ARCH}" == "arm64" ]]; then
     configure_cmd+=(--host=aarch64-apple-darwin)
@@ -489,8 +534,11 @@ build_pkg_from_source() {
   ohai "Building pkg (this may take a few minutes)..."
   execute make -j"$(sysctl -n hw.ncpu 2>/dev/null || echo 4)"
   
-  ohai "Installing pkg to ${PREFIX}..."
-  execute_sudo make install
+  ohai "Installing pkg to ${PREFIX}/opt/pkg..."
+  execute_sudo make install PREFIX="${PREFIX}/opt/pkg"
+  
+  # Create file symlinks from /opt/xnuports/opt/pkg/ to /opt/xnuports/
+  create_pkg_symlinks
   
   cd /
   rm -rf "${build_dir}"
@@ -502,6 +550,8 @@ setup_directories() {
   ohai "Creating directory structure under ${PREFIX}..."
   
   local -a dirs=(
+    "${PREFIX}/opt/pkg"
+    "${PREFIX}/opt/pkg_utils"
     "${PREFIX}/bin"
     "${PREFIX}/sbin"
     "${PREFIX}/lib"
@@ -643,11 +693,7 @@ export PORTSDIR="/opt/xnuports/xnuports"
 pkg() {
   local real_pkg="${XNUPORTS_PREFIX}/sbin/pkg"
   local result
-  if [[ "$1" == "install" || "$1" == "upgrade" || "$1" == "autoremove" ]]; then
-    result="$(sudo -E "${real_pkg}" "$@" 2>&1)"
-  else
-    result="$("${real_pkg}" "$@" 2>&1)"
-  fi
+  result="$(sudo -E "${real_pkg}" "$@" 2>&1)"
   local exit_code=$?
   echo "${result}"
   if [[ "$1" == "install" || "$1" == "upgrade" || "$1" == "autoremove" ]] && [[ ${exit_code} -eq 0 ]]; then
