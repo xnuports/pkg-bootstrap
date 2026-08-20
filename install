@@ -531,16 +531,6 @@ setup_directories() {
   execute_sudo mkdir -p "${dirs[@]}"
   execute_sudo chown -R "root:wheel" "${PREFIX}"
   
-  local writable_dirs=(
-    "${PREFIX}/var/db/pkg"
-    "${PREFIX}/var/cache/pkg"
-    "${PREFIX}/var/tmp"
-    "${PREFIX}/distfiles"
-  )
-  for dir in "${writable_dirs[@]}"; do
-    execute_sudo chown "${USER}:$(id -gn)" "${dir}"
-  done
-  
   execute_sudo chmod -R u+rwX,go+rX,go-w "${PREFIX}"
 }
 
