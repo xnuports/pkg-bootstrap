@@ -634,14 +634,6 @@ REPOCONF
   
   info "Wrote repository configuration to ${repo_conf}"
   
-  # Chown configs and parent dirs back to root so pkg accepts them
-  execute_sudo chown root:wheel "${pkg_conf}" "${repo_conf}" "${PREFIX}/etc" "${PREFIX}/etc/pkg" "${PREFIX}/etc/pkg/repos"
-  
-  # Create symlink so pkg can find its config at the compiled-in PREFIX (/tmp/pkg-install)
-  execute_sudo rm -rf /tmp/pkg-install
-  execute_sudo ln -s "${PREFIX}" /tmp/pkg-install
-  info "Created symlink /tmp/pkg-install -> ${PREFIX}"
-  
   # Set PKG_CONFIG environment for the installed pkg
   local env_script="${PREFIX}/etc/pkg/env.sh"
   cat > "${env_script}" <<'ENVSCRIPT'
@@ -654,6 +646,11 @@ export PKG_DOWNLOAD_CACHE="/opt/xnuports/distfiles"
 export PKG_SYSCONFDIR="/opt/xnuports/etc"
 export PORTSDIR="/opt/xnuports/xnuports"
 ENVSCRIPT
+  
+  # Chown configs and parent dirs back to root so pkg accepts them
+  execute_sudo chown root:wheel "${pkg_conf}" "${repo_conf}" "${env_script}" "${PREFIX}/etc" "${PREFIX}/etc/pkg" "${PREFIX}/etc/pkg/repos"
+  
+  # Create symlink so pkg can find its config at the compiled-in PREFIX (/tmp/pkg-install)
   
   chmod +x "${env_script}"
 }
