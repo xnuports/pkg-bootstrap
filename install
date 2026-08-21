@@ -695,7 +695,7 @@ pkg() {
   local exit_code=$?
   echo "${result}"
    if [[ "$1" == "install" || "$1" == "upgrade" || "$1" == "autoremove" ]] && [[ ${exit_code} -eq 0 ]]; then
-    sudo -E "${XNUPORTS_PREFIX}/opt/pkg-symlink/sbin/pkg-symlink" 2>/dev/null || true
+    sudo -E "${XNUPORTS_PREFIX}/opt/pkg-symlink/bin/pkg-symlink" 2>/dev/null || true
   fi
   return ${exit_code}
 }
@@ -711,37 +711,70 @@ ENVSCRIPT
   
   execute_sudo chmod +x "${env_script}"
   
-  # Create the symlink farm tool. Lives outside PATH on purpose: it is pkg
-  # infrastructure, called by package post-install scripts and the pkg shell
-  # wrapper, never by users directly.
-  local symlink_dir="${PREFIX}/opt/pkg-symlink/sbin"
+  # Create the symlink farm tool at its canonical absolute path. It is pkg
+  # infrastructure: called by package post-install scripts and the pkg shell
+  # wrapper via that path only. It is never symlinked into bin/ or sbin/ --
+  # the farm skips its own package when refreshing links.
+  local symlink_dir="${PREFIX}/opt/pkg-symlink/bin"
   local symlink_script="${symlink_dir}/pkg-symlink"
   execute_sudo mkdir -p "${symlink_dir}"
   execute_sudo tee "${symlink_script}" > /dev/null <<'SYMLINKS'
 #!/bin/sh
-# Refresh the symlink farm: expose each installed package's files under the
-# distro root. Package-prefix usr/bin and usr/sbin map to the distro usr/bin
-# and usr/sbin; legacy package bin/sbin/lib/... map to the matching top-level
-# directories.
+# Refresh the symlink farm: expose every installed package's file tree under
+# the distro root. Each directory found in a package prefix is mirrored at the
+# matching path under PREFIX and its files linked in -- bin, sbin, lib, man,
+# etc, share, include, usr/*, Developer/*, and anything else, at any depth.
+#
+# Rules:
+#   - Real files/dirs already present under PREFIX are never replaced; only
+#     entries that are absent or are existing farm links get (re)linked.
+#   - Loose files at a package root (LICENSE, README, ...) stay package-local.
+#   - The farm tool's own package is skipped entirely: it is invoked by
+#     absolute path (/opt/xnuports/opt/pkg-symlink/bin/pkg-symlink) and must
+#     never be symlinked anywhere.
+
 PREFIX="${XNUPORTS_PREFIX:-/opt/xnuports}"
-for pkgdir in "${PREFIX}/opt/"*; do
-  if [ -d "${pkgdir}" ]; then
-    for subdir in usr/bin usr/sbin bin sbin libexec lib include share; do
-      if [ -d "${pkgdir}/${subdir}" ]; then
-        mkdir -p "${PREFIX}/${subdir}"
-        for f in "${pkgdir}/${subdir}"/*; do
-          fname="$(basename "${f}")"
-          ln -sf "${pkgdir}/${subdir}/${fname}" "${PREFIX}/${subdir}/${fname}" 2>/dev/null || true
-        done
-      fi
-    done
+
+farm_dir() {
+  local _src="$1"
+  local _rel="$2"
+  local _entry _name _dest
+  if [ ! -d "${PREFIX}/${_rel}" ]; then
+    mkdir -p "${PREFIX}/${_rel}" 2>/dev/null || return 0
   fi
+  for _entry in "${_src}"/*; do
+    [ -e "${_entry}" ] || continue
+    _name="$(basename "${_entry}")"
+    _dest="${PREFIX}/${_rel}/${_name}"
+    if [ -d "${_entry}" ] && [ ! -L "${_entry}" ]; then
+      farm_dir "${_entry}" "${_rel}/${_name}"
+    else
+      if [ -e "${_dest}" ] && [ ! -L "${_dest}" ]; then
+        continue
+      fi
+      ln -sf "${_entry}" "${_dest}" 2>/dev/null || true
+    fi
+  done
+}
+
+for _pkgdir in "${PREFIX}/opt/"*; do
+  [ -d "${_pkgdir}" ] || continue
+  if [ "${_pkgdir}" = "${PREFIX}/opt/pkg-symlink" ]; then
+    continue
+  fi
+  for _top in "${_pkgdir}"/*; do
+    [ -e "${_top}" ] || continue
+    [ -d "${_top}" ] || continue
+    farm_dir "${_top}" "$(basename "${_top}")"
+  done
 done
 SYMLINKS
   execute_sudo chmod +x "${symlink_script}"
   execute_sudo chown root:wheel "${symlink_script}"
   # Retire the old in-PATH helper from pre-pkg-symlink installs.
   execute_sudo rm -f "${PREFIX}/bin/xpkg-symlinks"
+  # Link everything already present (base system binaries extracted above).
+  execute_sudo "${symlink_script}"
   info "Created symlink farm tool at ${symlink_script}"
 }
 
