@@ -807,7 +807,8 @@ setup_shell_environment() {
     return
   fi
 
-  local xnuports_path_env="export PATH=\"${PREFIX}/bin:${PREFIX}/sbin:\$PATH\""
+  local xnuports_path_env="export PATH=\"${PREFIX}/bin:${PREFIX}/sbin:${PREFIX}/usr/bin:${PREFIX}/usr/sbin:\$PATH\""
+  local xnuports_path_env_pre_usr="export PATH=\"${PREFIX}/bin:${PREFIX}/sbin:\$PATH\""
   local xnuports_shellinit="source \"${PREFIX}/etc/pkg/env.sh\""
   local xnuports_block="# xnuports package manager
 ${xnuports_path_env}
@@ -817,6 +818,13 @@ ${xnuports_shellinit}"
     # Check if already configured
     if grep -qF "${xnuports_path_env}" "${rcfile}" 2>/dev/null; then
       info "Shell environment already configured in ${rcfile}"
+      continue
+    fi
+
+    # Upgrade PATH line from installs that predate usr/bin and usr/sbin
+    if grep -qF "${xnuports_path_env_pre_usr}" "${rcfile}" 2>/dev/null; then
+      sed -i '' "s|${xnuports_path_env_pre_usr}|${xnuports_path_env}|" "${rcfile}"
+      info "Upgraded xnuports PATH in ${rcfile} (added usr/bin, usr/sbin)"
       continue
     fi
 
@@ -830,7 +838,7 @@ ${xnuports_shellinit}"
   done
 
   # Also add to current PATH
-  export PATH="${PREFIX}/sbin:${PREFIX}/bin:${PATH}"
+  export PATH="${PREFIX}/sbin:${PREFIX}/bin:${PREFIX}/usr/bin:${PREFIX}/usr/sbin:${PATH}"
 }
 
 # ─── Main ────────────────────────────────────────────────────────────────────
@@ -903,7 +911,7 @@ main() {
   echo "  2. Initialize pkg in your current shell:"
   echo "       source ${PREFIX}/etc/pkg/env.sh"
   echo "  3. Update repositories:"
-  echo "       sudo -E bash -c 'source ${PREFIX}/etc/pkg/env.sh && export PATH=\"${PREFIX}/sbin:${PREFIX}/bin:\$PATH\" && pkg update'"
+  echo "       sudo -E bash -c 'source ${PREFIX}/etc/pkg/env.sh && export PATH=\"${PREFIX}/sbin:${PREFIX}/bin:${PREFIX}/usr/bin:${PREFIX}/usr/sbin:\$PATH\" && pkg update'"
   echo "  4. Install packages:"
   echo "       ${PREFIX}/sbin/pkg install <package>"
   echo
