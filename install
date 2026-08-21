@@ -550,6 +550,8 @@ setup_directories() {
     "${PREFIX}/opt/pkg_utils"
     "${PREFIX}/bin"
     "${PREFIX}/sbin"
+    "${PREFIX}/usr/bin"
+    "${PREFIX}/usr/sbin"
     "${PREFIX}/lib"
     "${PREFIX}/include"
     "${PREFIX}/share"
@@ -692,8 +694,8 @@ pkg() {
   result="$(sudo -E "${real_pkg}" "$@" 2>&1)"
   local exit_code=$?
   echo "${result}"
-  if [[ "$1" == "install" || "$1" == "upgrade" || "$1" == "autoremove" ]] && [[ ${exit_code} -eq 0 ]]; then
-    sudo -E "${XNUPORTS_PREFIX}/bin/xpkg-symlinks" 2>/dev/null || true
+   if [[ "$1" == "install" || "$1" == "upgrade" || "$1" == "autoremove" ]] && [[ ${exit_code} -eq 0 ]]; then
+    sudo -E "${XNUPORTS_PREFIX}/opt/pkg-symlink/sbin/pkg-symlink" 2>/dev/null || true
   fi
   return ${exit_code}
 }
@@ -709,16 +711,22 @@ ENVSCRIPT
   
   execute_sudo chmod +x "${env_script}"
   
-  # Create symlink helper script
-  local symlink_script="${PREFIX}/bin/xpkg-symlinks"
+  # Create the symlink farm tool. Lives outside PATH on purpose: it is pkg
+  # infrastructure, called by package post-install scripts and the pkg shell
+  # wrapper, never by users directly.
+  local symlink_dir="${PREFIX}/opt/pkg-symlink/sbin"
+  local symlink_script="${symlink_dir}/pkg-symlink"
+  execute_sudo mkdir -p "${symlink_dir}"
   execute_sudo tee "${symlink_script}" > /dev/null <<'SYMLINKS'
 #!/bin/sh
-# Create symlinks for installed packages
+# Refresh the symlink farm: expose each installed package's files under the
+# distro root. Package-prefix usr/bin and usr/sbin map to the distro usr/bin
+# and usr/sbin; legacy package bin/sbin/lib/... map to the matching top-level
+# directories.
 PREFIX="${XNUPORTS_PREFIX:-/opt/xnuports}"
 for pkgdir in "${PREFIX}/opt/"*; do
   if [ -d "${pkgdir}" ]; then
-    pkgname="$(basename "${pkgdir}")"
-    for subdir in bin sbin libexec lib include share; do
+    for subdir in usr/bin usr/sbin bin sbin libexec lib include share; do
       if [ -d "${pkgdir}/${subdir}" ]; then
         mkdir -p "${PREFIX}/${subdir}"
         for f in "${pkgdir}/${subdir}"/*; do
@@ -732,7 +740,9 @@ done
 SYMLINKS
   execute_sudo chmod +x "${symlink_script}"
   execute_sudo chown root:wheel "${symlink_script}"
-  info "Created symlink helper script at ${symlink_script}"
+  # Retire the old in-PATH helper from pre-pkg-symlink installs.
+  execute_sudo rm -f "${PREFIX}/bin/xpkg-symlinks"
+  info "Created symlink farm tool at ${symlink_script}"
 }
 
 # ─── Shell Environment ──────────────────────────────────────────────────────
